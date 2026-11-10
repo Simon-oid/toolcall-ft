@@ -10,7 +10,7 @@ permissions:
 
 env:
   # The judge links this cMCP: the validator the servers run.
-  CMCP_REF: 3c0e5d4
+  CMCP_REF: 3c0e5d4ba8335f5e5167db783fab24fbc5852943   # 3c0e5d4
 
 jobs:
   test:
