@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from toolcall.evaluate import SPLITS, rates
+from toolcall.evaluate import REPORT_SPLITS, rates
 
 ROOT = Path(__file__).resolve().parent.parent
 COLS = ("call made", "L2 schema", "L3 tool", "L4 args", "abstain", "decision")
@@ -27,13 +27,16 @@ def main() -> int:
              "Rates over the test cases; [95% bootstrap interval] on the metrics that decide.",
              "levels and *call made* over cases that need a call, *abstain* over those that",
              "need none, *decision* (called iff it should) over all.", ""]
-    for split in SPLITS:
+    for split in REPORT_SPLITS:
         lines += [f"## {split}", "", "| run | " + " | ".join(COLS) + " |",
                   "|---|" + "---|" * len(COLS)]
         for run in runs:
             rows = [json.loads(x) for x in (ROOT / "results" / run / "results.jsonl")
                     .read_text().splitlines()]
-            m = rates([r for r in rows if r["split"] == split])
+            rows = [r for r in rows if r["split"] == split]
+            if not rows:
+                continue
+            m = rates(rows)
             lines.append(f"| {run} | " + " | ".join(
                 cell(m[c], c in ("L4 args", "abstain")) for c in COLS) + " |")
         lines.append("")

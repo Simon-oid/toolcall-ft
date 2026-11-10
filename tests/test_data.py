@@ -96,3 +96,33 @@ def test_framings_never_touch_written_content():
     for r in ROWS:
         if r["intent"] == "fs_write":
             assert r["call"]["arguments"]["content"] in r["request"]
+
+
+HAND = [json.loads(x) for x in (Path(__file__).resolve().parents[1] / "data" / "test_hand.jsonl")
+        .read_text().splitlines()]
+
+
+def test_hand_written_labels_are_valid_calls():
+    # A call satisfying each label: the first alternative, the label's words as the query.
+    calls = []
+    for r in HAND:
+        if r["expected"] is None:
+            continue
+        args = {}
+        for k, rule in r["expected"]["arguments"].items():
+            if k in r["expected"].get("optional", []):
+                continue
+            if isinstance(rule, dict) and "any_of" in rule:
+                args[k] = rule["any_of"][0]
+            elif isinstance(rule, dict) and "contains_all" in rule:
+                args[k] = " ".join(rule["contains_all"])
+            else:
+                args[k] = rule
+        calls.append((r, json.dumps({"name": r["expected"]["name"], "arguments": args})))
+    for (r, c), v in zip(calls, judge([c for _, c in calls]), strict=True):
+        assert all(score(parse_expected(r["expected"]), c, v).levels.values()), (r["request"], v)
+
+
+def test_hand_written_requests_are_not_in_training():
+    seen = {r["request"] for r in ROWS}
+    assert not [r["request"] for r in HAND if r["request"] in seen]

@@ -39,7 +39,8 @@ from .judge import judge
 from .prompt import call_or_none_schema, load_tools, messages, openai_tools, render
 from .score import LEVELS, extract_call, parse_expected, score
 
-SPLITS = ("test_id", "test_ood")
+SPLITS = ("test_id", "test_ood")           # evaluated by default
+REPORT_SPLITS = (*SPLITS, "test_hand")     # reported when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
             "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)"}
@@ -130,7 +131,7 @@ def failures(rows: list[dict], limit: int = 12) -> list[str]:
 def report(rows: list[dict], meta: dict) -> str:
     lines = [f"# {meta['name']}", "", " · ".join(f"{k}: {v}" for k, v in meta.items()
                                                    if k != "name"), ""]
-    for split in SPLITS:
+    for split in REPORT_SPLITS:
         rs = [r for r in rows if r["split"] == split]
         if not rs:
             continue

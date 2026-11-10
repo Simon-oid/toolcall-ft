@@ -22,7 +22,7 @@ import random
 import sys
 from pathlib import Path
 
-from toolcall.evaluate import SPLITS
+from toolcall.evaluate import REPORT_SPLITS
 
 ROOT = Path(__file__).resolve().parent.parent
 RESAMPLES = 10_000
@@ -70,8 +70,10 @@ def main() -> int:
         print("the runs do not cover the same cases", file=sys.stderr)
         return 1
     print(f"# {sys.argv[2]} vs {sys.argv[1]}\n")
-    for split in SPLITS:
+    for split in REPORT_SPLITS:
         ids = sorted(i for i in base if base[i]["split"] == split)
+        if not ids:
+            continue
         print(f"## {split}\n\n| metric | n | new - base [95% CI] | fixed | broken | McNemar p |")
         print("|---|---|---|---|---|---|")
         for metric in ("right", "abstain", "decision"):
