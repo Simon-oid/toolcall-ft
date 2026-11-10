@@ -28,6 +28,7 @@ class LlamaCpp:
     # together and greedy output stops being reproducible.
     concurrency: int = 1
     timeout_s: float = 120.0
+    transport: httpx.AsyncBaseTransport | None = None     # tests inject one
 
     async def _one(self, client: httpx.AsyncClient, prompt: str, sem: asyncio.Semaphore) -> str:
         body = {"prompt": prompt, "n_predict": self.max_tokens, "temperature": 0.0,
@@ -42,7 +43,7 @@ class LlamaCpp:
 
     async def agenerate(self, prompts: list[str]) -> list[str]:
         sem = asyncio.Semaphore(self.concurrency)
-        async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_s, transport=self.transport) as client:
             return await asyncio.gather(*(self._one(client, p, sem) for p in prompts))
 
     def generate(self, prompts: list[str]) -> list[str]:
@@ -68,6 +69,7 @@ class LlamaCppChat:
     max_tokens: int = 256
     concurrency: int = 1
     timeout_s: float = 120.0
+    transport: httpx.AsyncBaseTransport | None = None
 
     async def _one(self, client: httpx.AsyncClient, msgs: list[dict],
                    sem: asyncio.Semaphore) -> str:
@@ -87,7 +89,7 @@ class LlamaCppChat:
 
     async def agenerate(self, conversations: list[list[dict]]) -> list[str]:
         sem = asyncio.Semaphore(self.concurrency)
-        async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_s, transport=self.transport) as client:
             return await asyncio.gather(*(self._one(client, m, sem) for m in conversations))
 
     def generate(self, conversations: list[list[dict]]) -> list[str]:

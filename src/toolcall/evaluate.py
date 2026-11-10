@@ -145,7 +145,7 @@ def report(rows: list[dict], meta: dict) -> str:
 
 def git_rev() -> str:
     return subprocess.run(["git", "describe", "--always", "--dirty"], cwd=ROOT,
-                          capture_output=True, text=True).stdout.strip()
+                          capture_output=True, text=True, check=False).stdout.strip()
 
 
 def main() -> int:

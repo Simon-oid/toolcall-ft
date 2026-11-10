@@ -100,7 +100,7 @@ def main() -> int:
                          processing_class=tokenizer(args.model))
     # What the loss actually sees: TRL folds the completion mask into
     # `labels` (-100 = excluded), so check the labels themselves.
-    sample = trainer.train_dataset[0]
+    sample: dict = trainer.train_dataset[0]  # type: ignore[index]  # a map-style Dataset
     labels = sample.get("labels") or [t if m else -100 for t, m in
                                       zip(sample["input_ids"], sample["completion_mask"],
                                           strict=True)]

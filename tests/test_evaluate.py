@@ -43,3 +43,17 @@ def test_tools_and_constraint_cover_every_tool():
     assert [t["function"]["name"] for t in openai_tools(tools)] == [t["name"] for t in tools]
     names = [o["properties"]["name"]["const"] for o in call_or_none_schema(tools)["oneOf"]]
     assert names == [t["name"] for t in tools] + ["none"]
+
+
+def test_report_lists_rates_per_split_and_the_failures():
+    from toolcall.evaluate import report
+
+    rows = score_cases([READ, CHAT, READ, CHAT],
+                       [tc("fs_read", path="notes/a.md"), "Hello there!",
+                        tc("fs_read", path="notes/a.md", limit=0), tc("crag_stats")])
+    text = report(rows, {"name": "demo", "model": "m"})
+    assert text.startswith("# demo") and "## test_id (2 need a call, 2 need none)" in text
+    assert "## test_ood" not in text                      # no rows: no section
+    assert "| L4 args | 0.500" in text and "| fs_read | 2 | 0.50 |" in text
+    assert "fails schema" in text and "minimum" in text   # the validator's reason is shown
+    assert "called" in text and "crag_stats" in text      # a call where none was needed

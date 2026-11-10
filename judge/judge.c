@@ -68,6 +68,7 @@ static void put_bool(cmcp_json_t *o, const char *k, int b) {
 /* The verdict for one call text. Caller owns the result. */
 static cmcp_json_t *judge_one(const cmcp_json_t *tools, const char *text, size_t len) {
     cmcp_json_t *out = cmcp_json_new_object();
+    if (!out) return NULL;
     cmcp_json_t *call = cmcp_json_parse(text, len);
     const cmcp_json_t *name = call ? cmcp_json_object_get(call, "name") : NULL;
     const cmcp_json_t *args = call ? cmcp_json_object_get(call, "arguments") : NULL;
@@ -123,8 +124,16 @@ int main(int argc, char **argv) {
         cmcp_json_t *v = (s && s->type == CMCP_JSON_STRING)
             ? judge_one(tools, cmcp_json_string(s), cmcp_json_string_len(s))
             : judge_one(tools, "", 0);           /* not a JSON string: not a call */
-        char *txt = cmcp_json_emit(v);
-        if (txt) { fputs(txt, stdout); fputc('\n', stdout); free(txt); }
+        char *txt = v ? cmcp_json_emit(v) : NULL;
+        if (!txt) {
+            /* One verdict per input line, or none at all: a skipped line
+             * would silently shift every verdict after it. */
+            fprintf(stderr, "judge: out of memory\n");
+            return 2;
+        }
+        fputs(txt, stdout);
+        fputc('\n', stdout);
+        free(txt);
         cmcp_json_free(v);
         cmcp_json_free(s);
     }

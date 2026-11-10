@@ -19,7 +19,7 @@ eval = ["transformers>=4.46"]
 # sentencepiece: llama.cpp's converter imports it before falling back to BPE.
 train = ["transformers>=4.46", "peft>=0.13", "trl>=0.12", "datasets>=3.0", "accelerate>=1.0",
          "sentencepiece>=0.1.98,<0.3.0"]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -33,3 +33,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_missing_imports = true

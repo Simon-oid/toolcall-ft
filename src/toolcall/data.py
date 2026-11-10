@@ -31,7 +31,7 @@ from pathlib import Path
 
 SEED = 20261110
 ROOT = Path(__file__).resolve().parents[2]
-TRAIN_FAMILIES = range(0, 6)
+TRAIN_FAMILIES = range(6)
 OOD_FAMILIES = (6, 7)
 SPLITS = ("train", "val", "test_id", "test_ood")
 
@@ -42,7 +42,7 @@ SYSTEM = ("You are an assistant with tools for a document index (crag_*) and a s
 
 # ---- slot pools: disjoint between train and test ------------------------
 
-POOLS = {
+POOLS: dict[str, dict[str, list]] = {
     "train": {
         "dirs": ["notes", "docs", "src", "reports", "config", "meetings", "assets/img"],
         "names": ["plan", "todo", "setup", "summary", "budget", "changelog", "roadmap",

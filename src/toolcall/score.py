@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 # Hermes / Qwen 2.5 tool-call markup: <tool_call>{...}</tool_call>
 _TOOL_CALL = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.S)
@@ -54,7 +55,7 @@ class ArgRule:
         raise CaseError(f"unknown rule {self.kind}")
 
 
-def _same(a: object, b: object) -> bool:
+def _same(a: Any, b: Any) -> bool:
     """JSON equality that keeps bool, int and float apart (True == 1 in Python)."""
     if type(a) is not type(b):
         return False
@@ -130,10 +131,9 @@ class Score:
 
 def score(expected: Expected | None, call_text: str | None, verdict: dict | None) -> Score:
     """`verdict` is the judge's line for `call_text` (None when there is no call)."""
-    called = call_text is not None
     if expected is None:
-        return Score(called, None, not called)
-    if not called:
+        return Score(call_text is not None, None, call_text is None)
+    if call_text is None:
         return Score(False, dict.fromkeys(LEVELS, False), None)
     if verdict is None:
         raise ValueError("a call needs the judge's verdict")

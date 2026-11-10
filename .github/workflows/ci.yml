@@ -32,10 +32,11 @@ jobs:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
       - run: ruff check src tests scripts
+      - run: mypy src/toolcall
       - name: tests (the dataset is checked against the real cMCP validator and server)
         env:
           TOOLCALL_CMCP: ${{ github.workspace }}/cMCP
-        run: pytest -q
+        run: pytest -q --cov=toolcall --cov-report=term --cov-fail-under=80
       - name: committed data is what the generator produces
         run: |
           python -m toolcall.data

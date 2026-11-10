@@ -25,7 +25,7 @@ def judge(texts: list[str], tools: Path = TOOLS, binary: Path = JUDGE) -> list[d
         raise JudgeError(f"{binary} not built: make -C judge")
     stdin = "".join(json.dumps(t) + "\n" for t in texts)
     proc = subprocess.run([str(binary), str(tools)], input=stdin, capture_output=True,
-                          text=True, timeout=60)
+                          text=True, timeout=60, check=False)   # exit code checked below
     if proc.returncode != 0:
         raise JudgeError(f"judge exited {proc.returncode}: {proc.stderr.strip()}")
     verdicts = [json.loads(line) for line in proc.stdout.splitlines()]
