@@ -13,9 +13,9 @@ servers, and judges every call with the same code those servers run.
   accept. A call that fails it fails for the reason the server would give, such as
   `/limit: minimum` or `/top: additionalProperties`.
 
-Status: the judge, the scoring and the dataset are done and tested.
-Baselines, fine-tuning and serving come next. Every number here comes from
-a script, with its hardware and date.
+Status: the judge, the scoring, the dataset and the baselines are done.
+Fine-tuning and serving come next. Every number here comes from a script,
+with its hardware and date.
 
 ## How a call is scored
 
@@ -78,6 +78,62 @@ cases they are:
 - **`ambiguous`:** a fixed clarifying question;
 - **`no_tool`:** the base model's own answer, generated before training, so
   training teaches *when* to call without rewriting how the model talks.
+
+## Baselines
+
+All models run through a llama.cpp server on the same machine (RX 7800 XT,
+llama.cpp `a4d4f2f`, 2026-11-10). The prompt is rendered by the model's own
+chat template with the six tools, and decoding is greedy. Each server has one
+slot and gets one request at a time: two identical runs over the 474 test
+cases gave **0** different replies, so a difference between rows is the
+model, not noise. Full table with intervals:
+[`results/summary.md`](results/summary.md).
+
+The three decodings:
+- **free:** the raw reply, judged as written;
+- **eager:** the whole reply constrained to "a valid call or `{"name": "none"}`";
+- **lazy:** llama.cpp's own tool path, a grammar built from the tools' schemas
+  and applied only once the model starts a call.
+
+| test_ood (189 need a call, 105 need none) | right call (L4) [95% CI] | abstains when it should | call/no-call decision |
+|---|---|---|---|
+| Qwen2.5-1.5B Q8_0, free | 0.70 [0.63, 0.76] | 0.55 | 0.84 |
+| Qwen2.5-1.5B, eager | 0.69 | **0.00** | 0.64 |
+| Qwen2.5-1.5B, lazy | 0.68 | 0.55 | 0.83 |
+| Qwen2.5-3B Q4_K_M, free | 0.70 [0.64, 0.77] | 0.60 | 0.81 |
+| Qwen2.5-7B Q4_K_M, free | **0.90** [0.86, 0.94] | 0.60 | 0.83 |
+| Qwen2.5-7B, lazy | 0.84 [0.78, 0.89] | 0.61 | 0.83 |
+
+What the baselines show:
+
+- **The gap to close.** On held-out phrasings, the 7B gets 90% of calls
+  right and the 1.5B 70%, with the intervals well apart. The 3B is no better
+  than the 1.5B.
+- **Constraining all output removes the choice not to call.** With the
+  whole reply forced into JSON, the model never chose `none`: abstention
+  went from 0.55 to 0.00. Once a JSON object has started, it always goes on
+  with a tool name.
+- **A grammar can drop arguments silently.**
+  - The grammar llama.cpp derives from a schema fixes the key order:
+    required first, then optional in schema order (`limit` before
+    `offset`).
+  - The 7B writes `offset` and then `limit`. After `offset` the grammar no
+    longer allows `limit`, and the object closes.
+  - On the 24 requests for a line range, the 7B got **22** right free and
+    **4** right lazy, with `limit` dropped in 20.
+  - Every one of those calls is valid (level 2) and wrong (level 4): it reads
+    to the end of the file instead of the lines asked for.
+  - Constraining guarantees the form, and can cost the content.
+- **Constrained decoding does not choose the tool or the values.** At
+  levels 3–4 the lazy grammar is within the noise of free decoding at best.
+  The fine-tuning has to win there.
+- **Abstention is weak for every model, and differs by kind.** The 1.5B
+  makes a call on 60% of plain chit-chat (`no_tool`). The 7B makes a call on
+  55% of requests for an operation no tool does (`unsupported`).
+
+**Not done: a large model through an API.** The plan is a free-tier
+provider. It needs an API key, and the backend for an OpenAI-compatible
+endpoint is the next step.
 
 ## Training on an AMD GPU
 
