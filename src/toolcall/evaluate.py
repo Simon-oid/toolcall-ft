@@ -40,7 +40,7 @@ from .prompt import call_or_none_schema, load_tools, messages, openai_tools, ren
 from .score import LEVELS, extract_call, parse_expected, score
 
 SPLITS = ("test_id", "test_ood")           # evaluated by default
-REPORT_SPLITS = (*SPLITS, "test_hand")     # reported when present
+REPORT_SPLITS = (*SPLITS, "test_hand", "test_hand2")     # reported when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
             "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)"}

@@ -98,8 +98,8 @@ def test_framings_never_touch_written_content():
             assert r["call"]["arguments"]["content"] in r["request"]
 
 
-HAND = [json.loads(x) for x in (Path(__file__).resolve().parents[1] / "data" / "test_hand.jsonl")
-        .read_text().splitlines()]
+HAND = [json.loads(x) for name in ("test_hand.jsonl", "test_hand2.jsonl")
+        for x in (Path(__file__).resolve().parents[1] / "data" / name).read_text().splitlines()]
 
 
 def test_hand_written_labels_are_valid_calls():

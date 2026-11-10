@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import random
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -305,16 +306,64 @@ def no_tool(s: Slots, fam: int, pool: str):
     return s.rng.choice(NO_TOOL[pool]), None, None          # reply distilled from the base model
 
 
+# v2: refusals and clarifying questions in several wordings. With one fixed
+# sentence the v1 model learned the template and said it where it did not
+# belong ("What does research contain?" -> "I can't search the web: ...").
+# The wording is picked by a hash of the request, not by the random stream,
+# so the test sets the stream produces stay byte-identical.
+REFUSALS = (
+    "I can't {what}: my tools can only {summary}.",
+    "Sorry, I have no tool to {what}. I can {summary}.",
+    "That isn't something I can do here: there is no tool to {what}. "
+    "I can {summary}, though.",
+    "I'm not able to {what} with the tools I have. They let me {summary}.",
+)
+ASK_FRAMES = ("{ask}", "Happy to help. {ask}", "Sure, but I need one detail first. {ask}",
+              "I can do that once I know more. {ask}")
+
+
+def _pick(options: tuple, key: str) -> str:
+    return options[zlib.crc32(key.encode()) % len(options)]
+
+
 def unsupported(s: Slots, fam: int, pool: str):
     t, what = s.rng.choice(UNSUPPORTED[pool])
-    reply = f"I can't {what}: my tools can only {TOOLS_SUMMARY}."
-    return t.format(f=s.file(), g=s.file()), None, reply
+    request = t.format(f=s.file(), g=s.file())
+    reply = _pick(REFUSALS, request).format(what=what, summary=TOOLS_SUMMARY)
+    return request, None, reply
 
 
 def ambiguous(s: Slots, fam: int, pool: str):
     t, ask = s.rng.choice(AMBIGUOUS[pool])
     f = s.file()
-    return t.format(f=f), None, ask.format(f=f)
+    request = t.format(f=f)
+    return request, None, _pick(ASK_FRAMES, request).format(ask=ask.format(f=f))
+
+
+# v2: extra training cases for the line-range reads v1 got wrong: "the first
+# N lines" in more wordings, and a single line, which v1's data never had.
+# Train only, from their own random stream, after everything else: no test
+# case changes. Phrasings are new and differ from the held-out families.
+AUG_FAMILY = -2
+AUG_CASES = 160
+
+
+def fs_read_lines(s: Slots, fam: int):
+    f = s.file()
+    if s.rng.random() < 0.5:
+        n = s.rng.choice([2, 3, 8, 15, 30])
+        t = s.rng.choice(["Only the first {n} lines of {f}, please.",
+                          "{n} lines from the top of {f}.",
+                          "Show the beginning of {f}, {n} lines.",
+                          "Print the first {n} rows of {f}."])
+        args = {"path": path_rule(f), "limit": n, "offset": 1}
+        return t.format(n=n, f=f), {"name": "fs_read", "arguments": args,
+                                    "optional": ["offset"]}, None
+    a = s.rng.choice([2, 7, 12, 33, 60])
+    t = s.rng.choice(["What's on line {a} of {f}?", "Show me line {a} of {f}.",
+                      "Read line {a} in {f}.", "Line {a} of {f}, please."])
+    args = {"path": path_rule(f), "offset": a, "limit": 1}
+    return t.format(a=a, f=f), {"name": "fs_read", "arguments": args, "optional": []}, None
 
 
 CALL_INTENTS: dict[str, tuple[Gen, int]] = {     # intent -> (generator, train+val cases)
@@ -368,7 +417,8 @@ def build(seed: int = SEED) -> list[dict]:
     rng = random.Random(seed)
     rows: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    def add(split: str, intent: str, fam: int, pool: str, gen: Gen) -> None:
+    def add(split: str, intent: str, fam: int, pool: str, gen: Gen,
+            rng: random.Random = rng) -> None:
         """A request not already in the split. Evaluation splits never
         repeat one (repeats are not independent cases, and would shrink the
         bootstrap intervals): when a pool runs out, the case is skipped.
@@ -400,6 +450,9 @@ def build(seed: int = SEED) -> list[dict]:
             add("test_id", intent, TRAIN_FAMILIES[i % len(TRAIN_FAMILIES)], "test", gen)
         for i in range(TEST_OOD_PER_INTENT):
             add("test_ood", intent, OOD_FAMILIES[i % len(OOD_FAMILIES)], "test", gen)
+    aug = random.Random(seed + 1)
+    for _ in range(AUG_CASES):
+        add("train", "fs_read", AUG_FAMILY, "train", fs_read_lines, aug)
     return rows
 
 
