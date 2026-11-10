@@ -24,7 +24,9 @@ class LlamaCpp:
     url: str = "http://127.0.0.1:8083"
     json_schema: dict | None = None      # set: constrained decoding
     max_tokens: int = 256
-    concurrency: int = 4                 # = the server's -np slots
+    # One request at a time: with parallel slots llama.cpp batches requests
+    # together and greedy output stops being reproducible.
+    concurrency: int = 1
     timeout_s: float = 120.0
 
     async def _one(self, client: httpx.AsyncClient, prompt: str, sem: asyncio.Semaphore) -> str:
@@ -64,7 +66,7 @@ class LlamaCppChat:
     url: str = "http://127.0.0.1:8083"
     tools: list | None = None
     max_tokens: int = 256
-    concurrency: int = 4
+    concurrency: int = 1
     timeout_s: float = 120.0
 
     async def _one(self, client: httpx.AsyncClient, msgs: list[dict],
