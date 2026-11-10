@@ -85,7 +85,7 @@ def main() -> int:
 
     config = SFTConfig(
         output_dir=args.out, num_train_epochs=args.epochs, learning_rate=args.lr,
-        lr_scheduler_type="cosine", warmup_ratio=0.03, weight_decay=0.0,
+        lr_scheduler_type="cosine", warmup_steps=0.03, weight_decay=0.0,  # 3% of steps
         per_device_train_batch_size=args.batch, per_device_eval_batch_size=args.batch,
         gradient_accumulation_steps=args.accum, gradient_checkpointing=True,
         bf16=True, max_length=args.max_length, completion_only_loss=True, packing=False,
@@ -98,9 +98,13 @@ def main() -> int:
                          train_dataset=Dataset.from_list(train),
                          eval_dataset=Dataset.from_list(val),
                          processing_class=tokenizer(args.model))
+    # What the loss actually sees: TRL folds the completion mask into
+    # `labels` (-100 = excluded), so check the labels themselves.
     sample = trainer.train_dataset[0]
-    ids, mask = sample["input_ids"], sample["completion_mask"]
-    target = tokenizer(args.model).decode([t for t, m in zip(ids, mask, strict=True) if m])
+    labels = sample.get("labels") or [t if m else -100 for t, m in
+                                      zip(sample["input_ids"], sample["completion_mask"],
+                                          strict=True)]
+    target = tokenizer(args.model).decode([t for t in labels if t != -100])
     print(f"loss is on: {target!r}")
     if target.count("<|im_end|>") != 1 or not target.endswith("<|im_end|>"):
         raise SystemExit("the completion must end with exactly one <|im_end|>")
