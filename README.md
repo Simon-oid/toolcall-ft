@@ -14,18 +14,21 @@ servers, and judges every call with the same code those servers run.
   `/limit: minimum` or `/top: additionalProperties`.
 
 **Result: after LoRA fine-tuning, the 1.5B model makes the right call as often
-as the 7B and knows better when not to call.**
+as the 7B and knows much better when not to call.**
 
-| | right call, held-out phrasings | right call, hand-written | abstains when it should, held-out |
+| | right call, held-out phrasings | right call, hand-written (2 sets) | abstains when it should, held-out |
 |---|---|---|---|
-| Qwen2.5-1.5B base | 0.70 [0.63, 0.76] | 0.69 [0.54, 0.82] | 0.55 |
-| Qwen2.5-7B base | 0.90 [0.86, 0.94] | 0.87 [0.77, 0.97] | 0.60 |
-| **Qwen2.5-1.5B + LoRA** | **0.91** [0.87, 0.95] | **0.90** [0.79, 0.97] | **0.92** |
+| Qwen2.5-1.5B base | 0.70 [0.63, 0.76] | 0.69 · 0.84 | 0.55 |
+| Qwen2.5-7B base | 0.90 [0.86, 0.94] | 0.87 · 0.91 | 0.60 |
+| **Qwen2.5-1.5B + LoRA (v2)** | **0.92** [0.88, 0.96] | **0.95 · 0.91** | **0.99** |
 
-Every model runs as GGUF on llama.cpp, with free greedy decoding and 95%
-bootstrap intervals. Details, paired tests and failures are in
-[Fine-tuning](#fine-tuning). Every number here comes from a script, with its
-hardware and date.
+How these were measured:
+- every model runs as GGUF on llama.cpp, free greedy decoding;
+- the intervals are 95% bootstrap;
+- the hand-written sets have 54 and 48 cases, so their intervals are wide.
+
+Details, paired tests and failures are in [Fine-tuning](#fine-tuning).
+Every number here comes from a script, with its hardware and date.
 
 ## How a call is scored
 
@@ -195,8 +198,8 @@ cMCP's validator.
   synthetic set, so the fine-tuned model's lead is smaller. With 15 cases it
   is not significant.
 
-**Where the fine-tuned model still fails** (25 of 294 on test_ood, 5 of 54
-by hand):
+**Where v1 failed** (25 of 294 on test_ood, 5 of 54 by hand), which v2
+then addressed:
 - **`crag_stats` taken for `fs_stat`.** "Report the size of the document
   index." becomes `fs_stat {"path": "index"}`. The base model makes the same
   mistake.
@@ -210,6 +213,62 @@ by hand):
     refusals, like the distilled chit-chat replies, would be the fix.
 - **A search query that loses the user's key word** ("supported keywords"
   without "schema").
+
+**v2: fixing the two systematic failures.** The v1 errors pointed to two
+gaps in the training data, and v2 fills them:
+- refusals and clarifying questions now come in four wordings each;
+- 160 extra training reads cover "the first N lines" in new wordings, and a
+  single line.
+
+Every test case stays byte-identical: the new cases come from their own
+random stream, and the wordings are picked by a hash of the request. A
+second hand-written set, `test_hand2` (48 cases), was committed *before*
+v2 was trained. `test_hand` had been used to analyse v1's errors, so it is
+no longer a clean test for v2.
+
+Paired, v2 against v1:
+
+| | v1 | v2 | fixed / broken |
+|---|---|---|---|
+| line-range reads right (test_ood) | 20/24, `limit` dropped 4× | 23/24, dropped 0× | |
+| abstains when it should (test_ood) | 0.92 | 0.99 | 7 / 0, McNemar p 0.016 |
+| `crag_stats` (test_ood) | 8/14 | 14/14 | |
+| right call (test_ood) | 0.91 | 0.92 | 12 / 10, a tie |
+| test_hand2, right call · abstains | 0.91 · 1.00 | 0.91 · 1.00 | 1 / 1 |
+
+Against the 7B on test_ood, v2 is:
+- level on right calls: +0.016 [−0.03, +0.06];
+- far ahead on abstention: +0.39 [+0.30, +0.49], 42 cases fixed against 1.
+
+**What v2 still gets wrong.** It fails 16 of 294 test_ood cases.
+- **"What does research contain?"** accounts for 9 of them. The request
+  never says that `research` is a folder, so the model reads it as a
+  file, searches the docs, or asks.
+  - The fixed refusal no longer leaks there. The opener of a clarifying
+    question does instead: "I can do that once I know more…".
+  - The leak moved from one template to another rather than disappearing.
+- **"Run a retrieval on X. Just the single best hit."** The model searches
+  for `"the single best hit"` and loses the topic.
+
+**Does it still answer questions?** Training a model to call tools can cost
+it its general ability. So the base and the fine-tuned 1.5B (v1; not yet rerun
+for v2) both answered
+[askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
+which need grounded, cited answers and no tool calls, with the same
+retrieval. The 7B judged faithfulness. Reports are in
+[`results/askdocs-forgetting/`](results/askdocs-forgetting/).
+
+| askdocs eval | base 1.5B | fine-tuned 1.5B | paired difference [95% CI] |
+|---|---|---|---|
+| key facts | 0.71 | 0.76 | +0.05 [−0.05, +0.15] |
+| wrong refusals | 0.17 | 0.14 | −0.03 |
+| correct refusals | 1.00 | 1.00 | 0 |
+| faithfulness | 0.17 | 0.07 | −0.11 [−0.25, +0.04] |
+
+askdocs' regression gate flags nothing. The faithfulness drop is not
+significant, but it is the point estimate that fell, so it is the number to
+watch. A 1.5B is a weak answerer for askdocs either way: askdocs uses a 3B,
+whose key facts score is 0.87.
 
 **How strict level 4 is.** Exact matching counts some harmless calls as
 wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
