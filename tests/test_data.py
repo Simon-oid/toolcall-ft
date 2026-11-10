@@ -83,3 +83,16 @@ def test_fs_calls_run_on_the_real_server(tmp_path):
                               json.dumps(r["call"]["arguments"]), "--", str(FS_MCP),
                               "--root", str(tmp_path)], capture_output=True, text=True, timeout=10)
         assert out.returncode == 0 and "tool-level error" not in out.stdout, (r["call"], out.stdout)
+
+
+def test_evaluation_splits_never_repeat_a_request():
+    # Repeats are not independent cases: they would narrow the bootstrap intervals.
+    for split in ("val", "test_id", "test_ood"):
+        reqs = [r["request"] for r in by_split(split)]
+        assert len(reqs) == len(set(reqs)), split
+
+
+def test_framings_never_touch_written_content():
+    for r in ROWS:
+        if r["intent"] == "fs_write":
+            assert r["call"]["arguments"]["content"] in r["request"]

@@ -16,7 +16,8 @@ call extracted, the judge's verdict, the score) and report.md.
 
 Rates are over the cases of a split, with percentile bootstrap 95%
 intervals (10,000 resamples, fixed seed):
-  levels 1-4   over cases that need a call; no call counts as failing all
+  call made    over cases that need a call: the model made one
+  levels 1-4   over the same cases; no call counts as failing all four
   abstain      over cases that need none: the model made no call
   decision     over all cases: called when it should, abstained when not
 """
@@ -85,8 +86,9 @@ def score_cases(cases: list[dict], replies: list[str]) -> list[dict]:
 def rates(rows: list[dict]) -> dict:
     calls = [r for r in rows if r["expected"] is not None]
     none = [r for r in rows if r["expected"] is None]
-    out = {f"L{i} {lvl}": bootstrap([float(r["score"]["levels"][lvl]) for r in calls])
-           for i, lvl in enumerate(LEVELS, 1)}
+    out = {"call made": bootstrap([float(r["score"]["called"]) for r in calls])}
+    out |= {f"L{i} {lvl}": bootstrap([float(r["score"]["levels"][lvl]) for r in calls])
+            for i, lvl in enumerate(LEVELS, 1)}
     out["abstain"] = bootstrap([float(r["score"]["abstained_ok"]) for r in none])
     out["decision"] = bootstrap([float(r["score"]["called"] == (r["expected"] is not None))
                                  for r in rows])

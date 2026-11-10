@@ -59,6 +59,8 @@ POOLS = {
             ("WAL mode in SQLite", ["wal"]), ("the Python binding", ["binding"]),
         ],
         "root_phrases": ["the root folder", "the top level"],
+        "prefixes": ["Quick question: ", "Before we start: ", "Hi. ", "Please: "],
+        "suffixes": [" Thanks!", " (no rush)", " Thank you."],
         "contents": ["buy milk and eggs", "meeting moved to Thursday", "TODO: fix the parser",
                      "version 0.3 released", "call the dentist", "deadline is March 3",
                      "draft one, do not share", "hello world"],
@@ -76,6 +78,8 @@ POOLS = {
             ("the soak test", ["soak"]),
         ],
         "root_phrases": ["the sandbox root", "the base directory"],
+        "prefixes": ["Hey there. ", "One more thing: ", "Okay, next: "],
+        "suffixes": [" Cheers.", " Much appreciated.", " Please check."],
         "contents": ["pick up the parcel", "budget approved", "lunch at noon on Friday",
                      "rerun the benchmark", "all tests passing"],
     },
@@ -99,6 +103,20 @@ class Slots:
 
     def content(self) -> str:
         return self.rng.choice(self.p["contents"])
+
+
+FRAME_P = 0.4      # share of requests wrapped in a pool-specific prefix or suffix
+
+
+def frame(rng: random.Random, pool: dict, request: str) -> str:
+    """Politeness and chatter around a request: a prefix, or a suffix when
+    the request ends with punctuation (so a request ending with file
+    content, "...containing: buy milk", never gains words in its content)."""
+    if rng.random() >= FRAME_P:
+        return request
+    if request[-1] in ".?!" and rng.random() < 0.5:
+        return request + rng.choice(pool["suffixes"])
+    return rng.choice(pool["prefixes"]) + request
 
 
 def path_rule(path: str) -> dict:
@@ -228,7 +246,15 @@ NO_TOOL = {
              "What's the difference between a list and a tuple in Python?",
              "Who wrote Pride and Prejudice?", "Give me an antonym for 'ancient'.",
              "How many minutes are in a day?", "Explain what an API is to a child.",
-             "What's the boiling point of water at sea level?"],
+             "What's the boiling point of water at sea level?",
+             "What's the plural of 'cactus'?", "Name three primary colours.",
+             "How far is the Moon from the Earth, roughly?", "What is 2 to the power of 10?",
+             "Suggest a title for a blog post about gardening.", "What does CPU stand for?",
+             "Give me a tip for remembering names.", "Which is bigger, a kilobyte or a megabyte?",
+             "Write one sentence about the sea.", "What day comes after Wednesday?",
+             "How do you make a cup of tea?", "What's a good name for a goldfish?",
+             "Is Python compiled or interpreted?", "Thanks a lot, you've been helpful.",
+             "What rhymes with 'orange'?"],
 }
 UNSUPPORTED = {
     "train": [("Delete {f}.", "delete files"), ("Rename {f} to {g}.", "rename files"),
@@ -242,7 +268,13 @@ UNSUPPORTED = {
     "test": [("Remove {f} permanently.", "delete files"),
              ("Text my brother that dinner is at 7.", "send messages"),
              ("Copy {f} to {g}.", "copy files"), ("Restart the server.", "run commands"),
-             ("Add the new PDFs to the search index.", "rebuild the index")],
+             ("Add the new PDFs to the search index.", "rebuild the index"),
+             ("Erase {f} from the sandbox.", "delete files"),
+             ("Schedule a meeting with the team for Monday.", "manage calendars"),
+             ("Compress {f} into a zip.", "compress files"),
+             ("Translate {f} into German and save it.", "translate files"),
+             ("Push my changes to GitHub.", "use git"),
+             ("Fetch the latest exchange rates.", "download from the web")],
 }
 TOOLS_SUMMARY = ("search and inspect the document index, and list, read, stat or write "
                  "files in the sandbox")
@@ -259,7 +291,13 @@ AMBIGUOUS = {
     "test": [("Open it.", "Which file should I open?"),
              ("Put the summary in a file.", "Which file, and what summary should it contain?"),
              ("When was it changed?", "Which file do you mean?"),
-             ("Find the part about that in the docs.", "Which topic should I search for?")],
+             ("Find the part about that in the docs.", "Which topic should I search for?"),
+             ("List that folder.", "Which folder should I list?"),
+             ("Store my answer.", "Which file should I store it in, and what is the answer?"),
+             ("Check how large the document is.", "Which file do you mean?"),
+             ("Give me the first lines.", "Which file, and how many lines?"),
+             ("Fill {f} in.", "What should I write in {f}?"),
+             ("Query the index for me.", "What should I search the index for?")],
 }
 
 
@@ -330,14 +368,23 @@ def build(seed: int = SEED) -> list[dict]:
     rng = random.Random(seed)
     rows: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    repeats_ok = ("no_tool", "crag_stats", "unsupported", "ambiguous")   # small fixed sets
-
     def add(split: str, intent: str, fam: int, pool: str, gen: Gen) -> None:
-        for _ in range(50):              # avoid exact duplicate requests within a split
+        """A request not already in the split. Evaluation splits never
+        repeat one (repeats are not independent cases, and would shrink the
+        bootstrap intervals): when a pool runs out, the case is skipped.
+        Training tolerates a repeat after 50 tries."""
+        for _ in range(200):
             s = Slots(rng, POOLS[pool])
             req, exp, reply = gen(s, fam) if intent in CALL_INTENTS else gen(s, fam, pool)
-            if (split, req) not in seen or intent in repeats_ok:
+            req = frame(rng, POOLS[pool], req)
+            if (split, req) not in seen:
                 break
+            if split == "train" and _ >= 50:
+                break
+        else:
+            return
+        if (split, req) in seen and split != "train":
+            return
         seen.add((split, req))
         row = {"id": f"{split}-{len(rows):05d}", "split": split, "intent": intent,
                "family": fam, "request": req, "expected": exp, "reply": reply}
