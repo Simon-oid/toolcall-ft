@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # The judge links this cMCP: the validator the servers run.
+  CMCP_REF: 3c0e5d4
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Simon-oid/cMCP
+          ref: ${{ env.CMCP_REF }}
+          path: cMCP
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: build cMCP (libs, cmcp-inspect, filesystem-mcp) and the judge
+        run: |
+          make -C cMCP -j"$(nproc)"
+          make -C judge CMCP_DIR="$PWD/cMCP"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: ruff check src tests scripts
+      - name: tests (the dataset is checked against the real cMCP validator and server)
+        env:
+          TOOLCALL_CMCP: ${{ github.workspace }}/cMCP
+        run: pytest -q
+      - name: committed data is what the generator produces
+        run: |
+          python -m toolcall.data
+          git diff --exit-code data/

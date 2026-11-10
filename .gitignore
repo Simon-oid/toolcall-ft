@@ -1,0 +1,16 @@
+__pycache__/
+*.egg-info/
+.venv/
+.wheels/
+pip-install.log
+.coverage
+.pytest_cache/
+.ruff_cache/
+/judge/judge
+/runs/
+/models/
+CLAUDE.md
+TODO.md
+GEMINI.md
+.env
+/cMCP/
