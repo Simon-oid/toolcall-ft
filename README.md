@@ -1,5 +1,10 @@
 # toolcall-ft
 
+[![CI](https://github.com/Simon-oid/toolcall-ft/actions/workflows/ci.yml/badge.svg)](https://github.com/Simon-oid/toolcall-ft/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Simon-oid/toolcall-ft)](https://github.com/Simon-oid/toolcall-ft/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
+
 **Can a small open model call MCP tools as reliably as a large one?**
 This repository fine-tunes a 1–3B model to call the tools of two real MCP
 servers, and judges every call with the same code those servers run.
