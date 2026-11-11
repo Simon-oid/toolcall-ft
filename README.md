@@ -308,6 +308,15 @@ check that the machine can train before any plan relies on it. Measured on
 The out-of-memory case is the logits: a 152k-token vocabulary makes the fp32
 logits of 4 × 512 tokens 1.2 GB before their gradient.
 
+## Demo
+
+[`scripts/demo.py`](scripts/demo.py) sends five hand-written requests to the
+base model and to the fine-tuned one, side by side, and prints each call
+with the validator's verdict. In one run the base model miscounted a line
+range (`limit 15` for lines 30 to 45), passed an argument `crag_stats` does
+not take, and called a tool that does not exist (`fs_delete`). The
+fine-tuned model got all five right.
+
 ## Run it
 
 ```sh
