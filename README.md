@@ -13,6 +13,8 @@ servers, and judges every call with the same code those servers run.
   accept. A call that fails it fails for the reason the server would give, such as
   `/limit: minimum` or `/top: additionalProperties`.
 
+![toolcall-ft demo: five requests sent to the base model and to the fine-tuned one, each call judged by cMCP's validator](docs/demo.gif)
+
 **Result: after LoRA fine-tuning, the 1.5B model makes the right call as often
 as the 7B and knows much better when not to call.**
 
@@ -312,7 +314,7 @@ logits of 4 × 512 tokens 1.2 GB before their gradient.
 
 [`scripts/demo.py`](scripts/demo.py) sends five hand-written requests to the
 base model and to the fine-tuned one, side by side, and prints each call
-with the validator's verdict. In one run the base model miscounted a line
+with the validator's verdict (the recording at the top). In one run the base model miscounted a line
 range (`limit 15` for lines 30 to 45), passed an argument `crag_stats` does
 not take, and called a tool that does not exist (`fs_delete`). The
 fine-tuned model got all five right.

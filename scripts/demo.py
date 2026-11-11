@@ -40,7 +40,10 @@ BOLD, DIM, GREEN, RED, OFF = "\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033
 def show(label: str, reply: str) -> None:
     text = call_text(reply)
     if text is None:
-        print(f"  {label:11s} {DIM}no call:{OFF} {' '.join(reply.split())[:110]}")
+        words = " ".join(reply.split())
+        if len(words) > 105:
+            words = words[:104] + "…"
+        print(f"  {label:11s} {DIM}no call:{OFF} {words}")
         return
     v = judge([text])[0]
     ok = v["json"] and v["schema"]
