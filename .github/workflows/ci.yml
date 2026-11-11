@@ -22,7 +22,14 @@ jobs:
           repository: Simon-oid/cMCP
           ref: ${{ env.CMCP_REF }}
           path: cMCP
-      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: libcurl headers (already on the runner image; installed only if missing)
+        run: |
+          pkg-config --exists libcurl && exit 0
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev && exit 0
+            sleep 20
+          done
+          exit 1
       - name: build cMCP (libs, cmcp-inspect, filesystem-mcp) and the judge
         run: |
           make -C cMCP -j"$(nproc)"
