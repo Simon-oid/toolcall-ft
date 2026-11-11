@@ -14,3 +14,5 @@ TODO.md
 GEMINI.md
 .env
 /cMCP/
+.claude-checkpoint/
+CLAUDE_RESUME.md

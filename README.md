@@ -251,24 +251,35 @@ Against the 7B on test_ood, v2 is:
   for `"the single best hit"` and loses the topic.
 
 **Does it still answer questions?** Training a model to call tools can cost
-it its general ability. So the base and the fine-tuned 1.5B (v1; not yet rerun
-for v2) both answered
+it its general ability. So the base and the fine-tuned 1.5B answered
 [askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
 which need grounded, cited answers and no tool calls, with the same
-retrieval. The 7B judged faithfulness. Reports are in
+retrieval. A 7B judged faithfulness. Reports are in
 [`results/askdocs-forgetting/`](results/askdocs-forgetting/).
 
-| askdocs eval | base 1.5B | fine-tuned 1.5B | paired difference [95% CI] |
-|---|---|---|---|
-| key facts | 0.71 | 0.76 | +0.05 [−0.05, +0.15] |
-| wrong refusals | 0.17 | 0.14 | −0.03 |
-| correct refusals | 1.00 | 1.00 | 0 |
-| faithfulness | 0.17 | 0.07 | −0.11 [−0.25, +0.04] |
+| askdocs eval | base 1.5B | fine-tuned v1 | fine-tuned v2 | v2 − base [95% CI] |
+|---|---|---|---|---|
+| key facts | 0.71 | 0.76 | 0.77 | +0.06 [−0.04, +0.18] |
+| wrong refusals | 0.17 | 0.14 | 0.14 | −0.03 |
+| correct refusals | 1.00 | 1.00 | 1.00 | 0 |
+| faithfulness | 0.17 | 0.07 | 0.12 | −0.02 [−0.16, +0.11] |
 
-askdocs' regression gate flags nothing. The faithfulness drop is not
-significant, but it is the point estimate that fell, so it is the number to
-watch. A 1.5B is a weak answerer for askdocs either way: askdocs uses a 3B,
-whose key facts score is 0.87.
+askdocs' regression gate flags nothing for either version. The fine-tuning
+did not cost the model its ability to answer from documents.
+
+**As askdocs' answering model.** The same run compares the fine-tuned model
+with the 3B that askdocs uses by default
+([`compose.local-model.yaml`](https://github.com/Simon-oid/askdocs/blob/main/compose.local-model.yaml)
+serves any local GGUF):
+
+| answering model | key facts | faithfulness | answer P50 |
+|---|---|---|---|
+| Qwen2.5-3B (askdocs' default) | 0.87 | 0.60 | 686 ms |
+| Qwen2.5-1.5B + LoRA v2 | 0.77 | 0.12 | 445 ms |
+
+It is a third faster and much worse at citing, as the base 1.5B is. So it is
+not a replacement for the answering model: what the fine-tuning bought is
+tool calling.
 
 **How strict level 4 is.** Exact matching counts some harmless calls as
 wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
@@ -276,12 +287,10 @@ wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
 argument the request did not ask for, or content that is not what was
 dictated.
 
-**Limits.**
-- One training run, one seed.
-- The tools are fixed: six tools, two servers.
-- A model trained on these schemas has not been shown to generalise to other
-  tools.
-- English only, apart from one greeting.
+**Limits.** One training run per version, six fixed tools, one call per
+request, English only. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
+full list, and [`docs/architecture.md`](docs/architecture.md) the design
+decisions behind the measurement.
 
 ## Training on an AMD GPU
 
