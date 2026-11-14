@@ -27,12 +27,14 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import random
 import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from .api_backend import ApiChat
 from .backends import LlamaCpp, LlamaCppChat
 from .data import ROOT, load
 from .judge import judge
@@ -43,7 +45,8 @@ SPLITS = ("test_id", "test_ood")           # evaluated by default
 REPORT_SPLITS = (*SPLITS, "test_hand", "test_hand2")     # reported when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
-            "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)"}
+            "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)",
+            "api": "hosted API, native tool calling, temperature 0"}
 RESAMPLES = 10_000
 SEED = 20261110
 
@@ -156,10 +159,27 @@ def main() -> int:
     ap.add_argument("--decoding", choices=("free", "eager", "lazy"), default="free")
     ap.add_argument("--splits", default=",".join(SPLITS))
     ap.add_argument("--limit", type=int, help="first N cases per split (smoke runs)")
+    ap.add_argument("--api-model", help="hosted model id: use an OpenAI-compatible API")
+    ap.add_argument("--api-base", default="https://api.groq.com/openai/v1")
+    ap.add_argument("--api-key-env", default="TOOLCALL_API_KEY",
+                    help="environment variable holding the API key (never a flag)")
+    ap.add_argument("--reasoning-effort", choices=("low", "medium", "high"))
     args = ap.parse_args()
     tools = load_tools()
     cases = [c for s in args.splits.split(",") for c in load(s)[:args.limit]]
-    if args.decoding == "lazy":
+    usage = None
+    if args.api_model:
+        key = os.environ.get(args.api_key_env)
+        if not key:
+            print(f"--api-model needs the key in ${args.api_key_env}", file=sys.stderr)
+            return 2
+        args.decoding = "api"
+        backend = ApiChat(args.api_base, args.api_model, key, tools=openai_tools(tools),
+                          reasoning_effort=args.reasoning_effort)
+        props = backend.props()
+        replies = backend.generate([messages(c["request"]) for c in cases])
+        usage = backend.usage
+    elif args.decoding == "lazy":
         backend = LlamaCppChat(args.url, tools=openai_tools(tools))
         props = backend.props()
         replies = backend.generate([messages(c["request"]) for c in cases])
@@ -169,7 +189,7 @@ def main() -> int:
         props = backend.props()
         replies = backend.generate([render(c["request"], args.model, tools) for c in cases])
     rows = score_cases(cases, replies)
-    meta = {"name": args.name, "model": args.model,
+    meta = {"name": args.name, "model": args.api_model or args.model,
             "gguf": Path(props.get("model_path", "?")).name,
             "decoding": DECODING[args.decoding],
             "llama.cpp": props.get("build_info", "?"), "commit": git_rev(),
@@ -177,6 +197,8 @@ def main() -> int:
     out = ROOT / "results" / args.name
     out.mkdir(parents=True, exist_ok=True)
     (out / "results.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    if usage is not None:
+        (out / "usage.jsonl").write_text("".join(json.dumps(u) + "\n" for u in usage))
     (out / "report.md").write_text(report(rows, meta))
     print((out / "report.md").read_text())
     return 0
