@@ -5,10 +5,10 @@ there is one. Models ran as GGUF on llama.cpp on one machine (RX 7800 XT).
 
 ## How far the result reaches
 
-- **One training run per version, one seed.** "The 1.5B matches the 7B" rests
-  on a single v1 run and a single v2 run. The evaluation itself is
-  deterministic, but how much the result moves with the training seed has not
-  been measured.
+- **Three seeds for v2, one for v1.** Over three v2 training seeds, the right
+  call on test_ood is 0.92 ± 0.05 (0.88 to 0.97) and abstention 0.97 ± 0.04.
+  The seed moves the right-call rate about as much as the gap to the 7B, so
+  "matches the 7B" is the honest claim, not "beats". v1 was trained once.
 - **Six tools, two servers, fixed.** The model was trained on these schemas
   and tested on these schemas. Nothing shows it calls *other* tools better
   than the base model does.
@@ -18,8 +18,10 @@ there is one. Models ran as GGUF on llama.cpp on one machine (RX 7800 XT).
 - **The 7B baseline is Q4_K_M, the 1.5B models are Q8_0.** Each model runs at
   the quantization it would be served at on this GPU. The 7B at higher
   precision might do better.
-- **No comparison with a large hosted model.** The plan was a free-tier API,
-  and it has not been run.
+- **One hosted model, one setting.** gpt-oss-120b on Groq's free tier, at
+  `reasoning_effort: low`. A higher effort, or another large model, may do
+  better, especially on abstention. Its runtime differs from llama.cpp, and
+  part of its right-call gap is the dataset's `k` default, which it never saw.
 
 ## The test sets
 

@@ -4,6 +4,14 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- Hosted-model baseline: `evaluate --api-model` (OpenAI-compatible API,
+  native tools, token-per-minute throttling, 429 retry, provider-rejected
+  calls scored from the raw generation). gpt-oss-120b at reasoning low:
+  right call 0.89 on test_ood (0.94 counting the `k: 10` convention misses),
+  abstention 0.79.
+- v2 retrained with seeds 1 and 2: right call on test_ood 0.92 ± 0.05,
+  abstention 0.97 ± 0.04 over three seeds.
+
 ## 0.1.0 — 2026-11-11
 
 First release: the question, the measurement, and a fine-tuned model that

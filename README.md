@@ -21,17 +21,22 @@ servers, and judges every call with the same code those servers run.
 ![toolcall-ft demo: five requests sent to the base model and to the fine-tuned one, each call judged by cMCP's validator](docs/demo.gif)
 
 **Result: after LoRA fine-tuning, the 1.5B model makes the right call as often
-as the 7B and knows much better when not to call.**
+as the 7B, and as a hosted 120B, and knows much better when not to call.**
 
 | | right call, held-out phrasings | right call, hand-written (2 sets) | abstains when it should, held-out |
 |---|---|---|---|
 | Qwen2.5-1.5B base | 0.70 [0.63, 0.76] | 0.69 · 0.84 | 0.55 |
 | Qwen2.5-7B base | 0.90 [0.86, 0.94] | 0.87 · 0.91 | 0.60 |
-| **Qwen2.5-1.5B + LoRA (v2)** | **0.92** [0.88, 0.96] | **0.95 · 0.91** | **0.99** |
+| gpt-oss-120b, hosted, reasoning low | 0.89 [0.84, 0.93] | 0.95 · 0.88 | 0.79 [0.71, 0.87] |
+| **Qwen2.5-1.5B + LoRA (v2)**, seed 0 | **0.92** [0.88, 0.96] | **0.95 · 0.91** | **0.99** |
+| same recipe, 3 seeds: mean ± sd | 0.92 ± 0.05 | 0.97 ± 0.01 · 0.91 ± 0.00 | 0.97 ± 0.04 |
 
 How these were measured:
-- every model runs as GGUF on llama.cpp, free greedy decoding;
-- the intervals are 95% bootstrap;
+- the Qwen models run as GGUF on llama.cpp, free greedy decoding;
+- gpt-oss-120b runs on Groq's free tier with native tool calling, temperature
+  0, `reasoning_effort: low` (13.7 reasoning tokens per request on average),
+  graded by the same scorer and C judge ([below](#a-hosted-120b-baseline));
+- the intervals are 95% bootstrap; "± sd" is across three training seeds;
 - the hand-written sets have 54 and 48 cases, so their intervals are wide.
 
 Details, paired tests and failures are in [Fine-tuning](#fine-tuning).
@@ -123,6 +128,29 @@ The three decodings:
 | Qwen2.5-3B Q4_K_M, free | 0.70 [0.64, 0.77] | 0.60 | 0.81 |
 | Qwen2.5-7B Q4_K_M, free | **0.90** [0.86, 0.94] | 0.60 | 0.83 |
 | Qwen2.5-7B, lazy | 0.84 [0.78, 0.89] | 0.61 | 0.83 |
+| gpt-oss-120b, hosted API, reasoning low | 0.89 [0.84, 0.93] | 0.79 | 0.92 |
+
+### A hosted 120B baseline
+
+`python -m toolcall.evaluate --api-model openai/gpt-oss-120b --reasoning-effort low`
+(key in `$TOOLCALL_API_KEY`, never a flag) sends each case to an
+OpenAI-compatible API with the six tools as native `tools`
+([`src/toolcall/api_backend.py`](src/toolcall/api_backend.py)). It is a
+different runtime as well as a different model, so read the gap to the local
+rows as both. Its failures on test_ood, by kind:
+
+- **Right call: a tie, and most misses are a convention.** 9 of its 11 wrong
+  arguments are `k: 10` on `crag_search` where the request asked for no count
+  and the test expects the default 5. Counting those right gives 0.94, level
+  with the fine-tuned 1.5B (0.92 ± 0.05 over seeds). The fine-tuned model
+  learned the dataset's conventions; the 120B did not see them.
+- **Abstention: a real gap.** It calls a tool in 22 of the 105 requests it
+  should refuse (fine-tuned: 1 to 9 across seeds). Most are first steps
+  toward a task the tools cannot finish ("translate and save" → `fs_read`).
+  Four are worse: "erase this file", with no delete tool, becomes `fs_write`
+  with empty content, which truncates the file.
+- 2 of 474 calls were rejected by the provider as invalid (a tool not in the
+  request); they are scored from the raw generation, as wrong calls.
 
 What the baselines show:
 
