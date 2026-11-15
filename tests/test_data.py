@@ -98,7 +98,7 @@ def test_framings_never_touch_written_content():
             assert r["call"]["arguments"]["content"] in r["request"]
 
 
-HAND = [json.loads(x) for name in ("test_hand.jsonl", "test_hand2.jsonl")
+HAND = [json.loads(x) for name in ("test_hand.jsonl", "test_hand2.jsonl", "test_hand3.jsonl")
         for x in (Path(__file__).resolve().parents[1] / "data" / name).read_text().splitlines()]
 
 
