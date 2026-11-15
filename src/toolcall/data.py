@@ -366,6 +366,42 @@ def fs_read_lines(s: Slots, fam: int):
     return t.format(a=a, f=f), {"name": "fs_read", "arguments": args, "optional": []}, None
 
 
+# v3: the two concepts v2 still missed on test_ood (KNOWN_LIMITATIONS.md):
+# a folder named bare ("research", no extension, no word "folder") is listed,
+# not read; and a result-count constraint after a closed sentence ("..., please.
+# Just the single best hit.") sets k and stays out of the query. Train only,
+# from a third random stream, after everything else: no evaluation case
+# changes. The wordings differ from the held-out families and from every
+# hand-written test request, so the test sets measure the concept, not the
+# phrase (tests/test_data.py checks both).
+AUG3_FAMILY = -3
+AUG3_FOLDER_CASES = 80
+AUG3_SEARCH_CASES = 60
+FOLDER_WORDINGS = ("Look inside {d}.", "Peek into {d}.", "What sits in {d}?",
+                   "Say what {d} holds.", "Browse {d} for me.", "{d}: list it.")
+SEARCH_OPENERS = ("Dig up {t} in the docs, please.", "Pull the passages on {t}, thanks.",
+                  "Scan the documentation for {t}. Please.",
+                  "Comb the knowledge base for {t}, please.")
+ONE_HIT = (" Just the top hit.", " A single result will do.", " The best one is plenty.")
+SOME_HITS = (" Keep it to {k}.", " Cap it at {k}.", " {k} results max.",
+             " I want {k} of them.")
+
+
+def fs_list_bare(s: Slots, fam: int):
+    d = s.dir()
+    t = s.rng.choice(FOLDER_WORDINGS).format(d=d)
+    return t, {"name": "fs_list", "arguments": {"path": dir_rule(d)}, "optional": []}, None
+
+
+def crag_search_after_close(s: Slots, fam: int):
+    topic, words = s.topic()
+    k = s.rng.choice([1, 2, 3, 4, 8])
+    tail = s.rng.choice(ONE_HIT) if k == 1 else s.rng.choice(SOME_HITS).format(k=k)
+    t = s.rng.choice(SEARCH_OPENERS).format(t=topic) + tail
+    args = {"query": {"contains_all": words}, "k": k}
+    return t, {"name": "crag_search", "arguments": args, "optional": []}, None
+
+
 CALL_INTENTS: dict[str, tuple[Gen, int]] = {     # intent -> (generator, train+val cases)
     "crag_search": (crag_search, 300), "crag_stats": (crag_stats, 90),
     "fs_list": (fs_list, 190), "fs_read": (fs_read, 360), "fs_stat": (fs_stat, 150),
@@ -453,6 +489,11 @@ def build(seed: int = SEED) -> list[dict]:
     aug = random.Random(seed + 1)
     for _ in range(AUG_CASES):
         add("train", "fs_read", AUG_FAMILY, "train", fs_read_lines, aug)
+    aug3 = random.Random(seed + 2)
+    for _ in range(AUG3_FOLDER_CASES):
+        add("train", "fs_list", AUG3_FAMILY, "train", fs_list_bare, aug3)
+    for _ in range(AUG3_SEARCH_CASES):
+        add("train", "crag_search", AUG3_FAMILY, "train", crag_search_after_close, aug3)
     return rows
 
 

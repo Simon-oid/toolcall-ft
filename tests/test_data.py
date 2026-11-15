@@ -126,3 +126,23 @@ def test_hand_written_labels_are_valid_calls():
 def test_hand_written_requests_are_not_in_training():
     seen = {r["request"] for r in ROWS}
     assert not [r["request"] for r in HAND if r["request"] in seen]
+
+
+def test_evaluation_splits_match_the_committed_files():
+    # v3 appends training cases only: every evaluation case stays byte-identical.
+    data = Path(__file__).resolve().parents[1] / "data"
+    for split in ("val", "test_id", "test_ood"):
+        committed = [json.loads(x) for x in (data / f"{split}.jsonl").read_text().splitlines()]
+        assert [r for r in ROWS if r["split"] == split] == committed, split
+
+
+def test_v3_wordings_are_not_test_wordings():
+    # test_id shares the training families by design; the held-out and the
+    # hand-written sets must not contain a v3 training wording.
+    from toolcall.data import FOLDER_WORDINGS, ONE_HIT, SEARCH_OPENERS, SOME_HITS
+    tests = [r["request"].lower() for r in ROWS if r["split"] == "test_ood"]
+    tests += [r["request"].lower() for r in HAND]
+    stems = [w.split("{")[0].strip().lower() for w in (*FOLDER_WORDINGS, *SEARCH_OPENERS)]
+    stems += [w.split("{")[0].strip().lower() for w in (*ONE_HIT, *SOME_HITS)]
+    stems = [x for x in stems if len(x) >= 8]
+    assert not [(x, t) for x in stems for t in tests if x in t]
