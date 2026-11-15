@@ -1,6 +1,7 @@
 # toolcall-ft
 
 [![CI](https://github.com/Simon-oid/toolcall-ft/actions/workflows/ci.yml/badge.svg)](https://github.com/Simon-oid/toolcall-ft/actions/workflows/ci.yml)
+[![Coverage ≥80%, gated in CI](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-brightgreen)](https://github.com/Simon-oid/toolcall-ft/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Simon-oid/toolcall-ft)](https://github.com/Simon-oid/toolcall-ft/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
