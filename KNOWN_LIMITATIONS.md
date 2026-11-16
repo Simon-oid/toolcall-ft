@@ -66,9 +66,15 @@ It fails 16 of 294 `test_ood` cases.
 - **The findings are for one llama.cpp build** (`a4d4f2f`). The fixed key
   order that made the grammar drop `limit` is how that build derives a
   grammar from a schema; another build or another runtime may differ.
-- **The fine-tuned model is best served free.** Under the lazy grammar its
-  right-call rate falls (0.91 → 0.87 for v1 on `test_ood`). The cause was
-  not analysed for the fine-tuned model.
+- **The fine-tuned model is best served free, and the reason is in the
+  training data.** Under the lazy grammar its right-call rate falls
+  (0.91 → 0.87 for v1 on `test_ood`). All 7 cases the grammar breaks (and
+  none it fixes) are line-range reads that lose `limit`: the same mechanism
+  as the 7B's. The grammar orders keys required first, then optional in
+  schema order (`path`, `limit`, `offset`); every training call with both
+  writes `path`, `offset`, `limit` (147 of 147), so the model learned the
+  order the grammar forbids. Training with the grammar's key order should
+  remove the drop; it is not done (v3 changes one thing at a time).
 
 ## Operations
 

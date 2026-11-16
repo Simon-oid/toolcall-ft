@@ -4,6 +4,11 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- Analysis: why the fine-tuned model loses calls under the lazy grammar
+  (0.91 → 0.87). All 7 broken cases drop `limit` on a line range, because
+  the training calls write `offset` before `limit` (147 of 147) and the
+  grammar llama.cpp derives from the schema orders them the other way.
+  See `KNOWN_LIMITATIONS.md`.
 - Hosted-model baseline: `evaluate --api-model` (OpenAI-compatible API,
   native tools, token-per-minute throttling, 429 retry, provider-rejected
   calls scored from the raw generation). gpt-oss-120b at reasoning low:
