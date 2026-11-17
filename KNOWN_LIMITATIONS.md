@@ -28,11 +28,12 @@ there is one. Models ran as GGUF on llama.cpp on one machine (RX 7800 XT).
 - **Most test cases come from the generator that made the training data.**
   `test_ood` has unseen phrasings and unseen values, but the generator's
   style. The two hand-written sets exist for that reason.
-- **The hand-written sets are small:** 54 and 48 cases. Their intervals are
+- **The hand-written sets are small:** 54, 48 and 48 cases. Their intervals are
   wide (0.91 [0.81, 1.00]), and on `test_hand2` the base model is already at
   0.84 on calls, so the gain there is not significant.
 - **`test_hand` is no longer blind for v2.** Its failures were read to decide
-  what v2 should fix. `test_hand2` was committed before v2 was trained.
+  what v2 should fix. `test_hand2` was committed before v2 was trained,
+  `test_hand3` before v3; only `test_hand3` is still blind.
 - **The hand-written cases were written by the same author as the
   generator.** They differ in style, not in who imagined the requests.
 - **Level 4 is strict by rule.** An argument the request did not ask for
@@ -51,6 +52,20 @@ It fails 16 of 294 `test_ood` cases.
   question appears there instead ("I can do that once I know more…").
 - **A trailing instruction taken as the query.** "Run a retrieval on X. Just
   the single best hit." is searched as `"the single best hit"`.
+
+## What v3 still gets wrong
+
+It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
+
+- **It calls on ambiguous requests v2 refused.** "Find the part about that
+  in the docs" is searched as `"that"`, and "fill drafts/outline.py in"
+  is answered by writing invented content: 10 cases broken and 2 fixed
+  over three seeds (abstention 0.97 → 0.94). The 140 new cases all need a
+  call; no ambiguous counterpart was added.
+- **A trailing instruction still replaces the query** in 2 of 3 runs
+  ("the single best hit", "the best hit"), against 4 for v2.
+- **Not checked on askdocs.** The forgetting check above was run on v1 and
+  v2 only.
 
 ## Side effects of the training
 

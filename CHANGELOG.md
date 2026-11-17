@@ -4,6 +4,13 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- v3: 140 training cases for bare-folder `fs_list` and for a search
+  constraint after a closed sentence, three seeds, compared with v2 seed by
+  seed. Right call on test_ood 0.92 ± 0.05 → 0.96 ± 0.01; on the blind
+  `test_hand3` 0.89 → 0.97 (8 fixed, 0 broken). Abstention on test_ood
+  0.97 → 0.94: v3 calls on some ambiguous requests v2 refused.
+- `data/test_hand3.jsonl`: 48 hand-written cases, committed before v3 was
+  trained.
 - Analysis: why the fine-tuned model loses calls under the lazy grammar
   (0.91 → 0.87). All 7 broken cases drop `limit` on a line range, because
   the training calls write `offset` before `limit` (147 of 147) and the

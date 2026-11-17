@@ -31,6 +31,7 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | gpt-oss-120b, hosted, reasoning low | 0.89 [0.84, 0.93] | 0.95 · 0.88 | 0.79 [0.71, 0.87] |
 | **Qwen2.5-1.5B + LoRA (v2)**, seed 0 | **0.92** [0.88, 0.96] | **0.95 · 0.91** | **0.99** |
 | same recipe, 3 seeds: mean ± sd | 0.92 ± 0.05 | 0.97 ± 0.01 · 0.91 ± 0.00 | 0.97 ± 0.04 |
+| **v3**, 3 seeds: mean ± sd | **0.96 ± 0.01** | 0.95 ± 0.03 · 0.92 ± 0.05 | 0.94 ± 0.04 |
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -286,6 +287,40 @@ Against the 7B on test_ood, v2 is:
 - **"Run a retrieval on X. Just the single best hit."** The model searches
   for `"the single best hit"` and loses the topic.
 
+**v3: folders and trailing instructions.** v3 adds 140 training cases for
+the two failures above, and changes nothing else:
+- 80 `fs_list` requests that name a bare folder ("what does research
+  contain?");
+- 60 `crag_search` requests where a constraint follows a closed sentence
+  ("… please. Just the single best hit.").
+
+None of their wordings appears in a test set. A third hand-written set,
+[`data/test_hand3.jsonl`](data/test_hand3.jsonl) (48 cases), was committed
+before v3 was trained. Both versions were trained with the same three seeds
+and compared seed by seed:
+
+| | v2, 3 seeds | v3, 3 seeds | fixed / broken, pooled |
+|---|---|---|---|
+| right call (test_ood) | 0.92 ± 0.05 | **0.96 ± 0.01** | 29 / 6 |
+| bare-folder `fs_list` (test_ood, 15 cases) | 6 of 15 on average | 14 of 15 | |
+| query replaced by "the single best hit" | 4 in 3 runs | 2 in 3 runs | |
+| right call (test_hand3, blind) | 0.89 | **0.97** | 8 / 0 |
+| abstains when it should (test_ood) | 0.97 ± 0.04 | 0.94 ± 0.04 | 2 / 10 |
+| abstains when it should (test_hand3) | 0.88 | 0.88 | 1 / 1 |
+
+"Pooled" adds the three seeds' paired changes, so a case counts once per
+seed; per seed, v3's gain on test_ood right calls is +0.05, +0.07 and
++0.00 (McNemar p 0.01, 0.0005, 1).
+- **The folder failure is fixed** in all three seeds, and the right-call
+  rate no longer swings with the seed (sd 0.05 → 0.01).
+- **It costs some abstention on ambiguous requests.** The 10 broken cases
+  are "find the part about that in the docs", searched as `"that"`, and
+  "fill drafts/outline.py in", answered with invented content. v3 taught
+  the model to call more readily, and no ambiguous counterpart was added
+  to balance it. That is the next data change.
+- **The trailing-instruction failure is only halved,** and on the older
+  hand-written sets the two versions are level within their intervals.
+
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
 [askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
@@ -323,7 +358,8 @@ wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
 argument the request did not ask for, or content that is not what was
 dictated.
 
-**Limits.** One training run per version, six fixed tools, one call per
+**Limits.** Three training seeds for v2 and v3, one for v1; v3 was not
+checked on askdocs. Six fixed tools, one call per
 request, English only. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
 full list, and [`docs/architecture.md`](docs/architecture.md) the design
 decisions behind the measurement.
