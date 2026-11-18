@@ -16,8 +16,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: Simon-oid/cMCP
           ref: ${{ env.CMCP_REF }}
@@ -34,7 +34,7 @@ jobs:
         run: |
           make -C cMCP -j"$(nproc)"
           make -C judge CMCP_DIR="$PWD/cMCP"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
