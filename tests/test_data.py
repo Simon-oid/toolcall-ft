@@ -147,3 +147,20 @@ def test_v3_wordings_are_not_test_wordings():
     stems += [w.split("{")[0].strip().lower() for w in (*ONE_HIT, *SOME_HITS)]
     stems = [x for x in stems if len(x) >= 8]
     assert not [(x, t) for x in stems for t in tests if x in t]
+
+
+def test_v4_cases_ask_instead_of_calling():
+    v4 = [r for r in ROWS if r["family"] == -4]
+    assert len(v4) == 140 and {r["split"] for r in v4} == {"train"}
+    assert all(r["intent"] == "ambiguous" and r["expected"] is None and "call" not in r
+               and r["reply"].endswith("?") for r in v4)
+
+
+def test_v4_wordings_are_not_test_wordings():
+    from toolcall.data import VAGUE_TOPICS, WRITE_NO_CONTENT, WRITE_NO_FILE
+    tests = [r["request"].lower() for r in ROWS if r["split"] == "test_ood"]
+    tests += [r["request"].lower() for r in HAND]
+    stems = [w.split("{")[0].strip().lower() for w in (*WRITE_NO_CONTENT, *WRITE_NO_FILE)]
+    stems += [t.lower() for t in VAGUE_TOPICS]
+    stems = [x for x in stems if len(x) >= 8]
+    assert not [(x, t) for x in stems for t in tests if x in t]

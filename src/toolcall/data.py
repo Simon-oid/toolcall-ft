@@ -402,6 +402,61 @@ def crag_search_after_close(s: Slots, fam: int):
     return t, {"name": "crag_search", "arguments": args, "optional": []}, None
 
 
+# v4: v3 added only cases that call, and the model learned to call more
+# readily ("find the part about that in the docs" -> crag_search "that";
+# "fill drafts/outline.py in" -> an invented fs_write; abstention on test_ood
+# 0.97 -> 0.94). These are the near misses of the v3 cases: the same
+# wordings with the folder, the topic, the content or the file replaced by a
+# reference the request never resolves, answered with a clarifying question.
+# Train only, from a fourth random stream, after everything else.
+AUG4_FAMILY = -4
+AUG4_FOLDER_CASES = 40
+AUG4_SEARCH_CASES = 50
+AUG4_WRITE_CASES = 50
+VAGUE_DIRS = ("it", "that one", "the folder", "this directory", "that place")
+VAGUE_TOPICS = ("that", "it", "what I mentioned", "the thing from before",
+                "the other topic", "this subject")
+WRITE_NO_CONTENT = ("Write into {f}.", "Add some text to {f}.", "Put the usual in {f}.",
+                    "Make {f} say what we agreed.", "Finish {f} for me.")
+WRITE_NO_FILE = ("Save the text '{c}'.", "Write \"{c}\" down somewhere.", "Store this: {c}")
+FOLDER_ASKS = ("Which folder do you mean?", "Which folder should I look in?")
+SEARCH_ASKS = ("What topic should I search the docs for?", "What should I look up?")
+CONTENT_ASKS = ("What should I write in {f}?", "What text should {f} contain?")
+FILE_ASKS = ("Which file should I save it in?", "What should the file be called?")
+
+
+def _clarify(request: str, asks: tuple, **slots: str) -> str:
+    ask = _pick(asks, "ask:" + request).format(**slots)
+    return _pick(ASK_FRAMES, request).format(ask=ask)
+
+
+def _capital(text: str) -> str:
+    return text[0].upper() + text[1:]
+
+
+def fs_list_vague(s: Slots, fam: int, pool: str):
+    # "{d}: list it." would start with the pronoun: left out.
+    t = _capital(s.rng.choice(FOLDER_WORDINGS[:-1]).format(d=s.rng.choice(VAGUE_DIRS)))
+    return t, None, _clarify(t, FOLDER_ASKS)
+
+
+def crag_search_vague(s: Slots, fam: int, pool: str):
+    t = s.rng.choice(SEARCH_OPENERS).format(t=s.rng.choice(VAGUE_TOPICS))
+    if s.rng.random() < 0.5:                        # a count, still no topic
+        k = s.rng.choice([1, 2, 3, 4, 8])
+        t += s.rng.choice(ONE_HIT) if k == 1 else s.rng.choice(SOME_HITS).format(k=k)
+    return t, None, _clarify(t, SEARCH_ASKS)
+
+
+def fs_write_vague(s: Slots, fam: int, pool: str):
+    if s.rng.random() < 0.6:
+        f = s.file()
+        t = s.rng.choice(WRITE_NO_CONTENT).format(f=f)
+        return t, None, _clarify(t, CONTENT_ASKS, f=f)
+    t = _capital(s.rng.choice(WRITE_NO_FILE).format(c=s.content()))
+    return t, None, _clarify(t, FILE_ASKS)
+
+
 CALL_INTENTS: dict[str, tuple[Gen, int]] = {     # intent -> (generator, train+val cases)
     "crag_search": (crag_search, 300), "crag_stats": (crag_stats, 90),
     "fs_list": (fs_list, 190), "fs_read": (fs_read, 360), "fs_stat": (fs_stat, 150),
@@ -494,6 +549,11 @@ def build(seed: int = SEED) -> list[dict]:
         add("train", "fs_list", AUG3_FAMILY, "train", fs_list_bare, aug3)
     for _ in range(AUG3_SEARCH_CASES):
         add("train", "crag_search", AUG3_FAMILY, "train", crag_search_after_close, aug3)
+    aug4 = random.Random(seed + 3)
+    for gen, n in ((fs_list_vague, AUG4_FOLDER_CASES), (crag_search_vague, AUG4_SEARCH_CASES),
+                   (fs_write_vague, AUG4_WRITE_CASES)):
+        for _ in range(n):
+            add("train", "ambiguous", AUG4_FAMILY, "train", gen, aug4)
     return rows
 
 
