@@ -206,3 +206,82 @@ def test_episode_scoring_counts_an_episode_only_when_every_step_is_right():
     assert episode_rates(rows)["episode right"][0] == 1.0
     wrong = [*right[:-1], "Sure, done."]          # the final reply drops the fact
     assert episode_rates(score_cases(ep, wrong))["episode right"][0] == 0.0
+
+
+HAND6_SAMPLE = """
+# a comment
+E | find_then_read
+U | open the budget file in reports
+C | fs_list path=reports
+r | file           12  budget.csv\\nfile            9  notes.md
+C | fs_read path=reports/budget.csv
+r | total,1200
+A | 1200
+
+E | followup_stat
+U | read notes/todo.md
+c | fs_read path="notes/todo.md"
+r | buy milk
+s | notes/todo.md says: buy milk
+U | how big is it?
+C | fs_stat path=notes/todo.md
+r | path:     notes/todo.md\\ntype:     file\\nsize:     9
+A | 9 bytes
+
+E | followup_ask
+U | search the docs for WAL mode
+c | crag_search query="WAL mode"
+r | [cos 0.700  bm25 5.00  fusion 0.033] docs/wal.md\\nWAL mode lets readers run.
+s | The docs say WAL mode lets readers run.
+U | save that
+A |
+"""
+
+
+def test_handset_mt_builds_scored_steps_with_the_right_history():
+    from toolcall.handset_mt import convert
+    rows = convert(HAND6_SAMPLE, "test_hand6")
+    assert [(r["intent"], r["step"]) for r in rows] == [
+        ("find_then_read", 0), ("find_then_read", 1), ("find_then_read", 2),
+        ("followup_stat", 0), ("followup_stat", 1), ("followup_ask", 0)]
+    first, second = rows[0], rows[1]
+    assert second["context"][:len(first["context"])] == first["context"]
+    assert second["context"][1]["tool_calls"][0]["function"] == first["call"]
+    assert second["context"][2]["content"].count("\n") == 1      # \n became a newline
+    assert rows[2]["answer"] == {"all": ["1200"]} and rows[5]["answer"] is None
+    stat = rows[3]
+    assert [m["role"] for m in stat["context"]] == ["user", "assistant", "tool", "assistant",
+                                                     "user"]
+    assert stat["request"] == "how big is it?"
+
+
+def test_handset_mt_labels_are_valid_calls():
+    from toolcall.handset_mt import convert
+    calls = [r for r in convert(HAND6_SAMPLE, "test_hand6") if r["expected"]]
+    for r, v in zip(calls, judge([json.dumps(r["call"]) for r in calls]), strict=True):
+        assert all(score(parse_expected(r["expected"]), json.dumps(r["call"]), v)
+                   .levels.values()), r["id"]
+
+
+@pytest.mark.parametrize("text,error", [
+    ("U | hi\nA |", "first line of an episode"),
+    ("E | x\nU | hi\nC | fs_list path=a\nA |", "followed by its r line"),
+    ("E | x\nU | hi\nr | oops\nA |", "r without a call"),
+    ("E | x\nU | hi\nC | fs_list path=a\nr | ok", "must end with a scored A"),
+    ("E | x\nU | hi\nA |\nU | more", "nothing may follow"),
+    ("E | x\nQ | hi", "unknown line type"),
+])
+def test_handset_mt_rejects_malformed_episodes(text, error):
+    from toolcall.handset import HandSetError
+    from toolcall.handset_mt import convert
+    with pytest.raises(HandSetError, match=error):
+        convert(text, "t")
+
+
+def test_hand6_jsonl_is_generated_from_its_text_source():
+    from toolcall.handset_mt import convert, to_jsonl
+    src = DATA / "test_hand6.txt"
+    if not (DATA / "test_hand6.jsonl").exists():
+        pytest.skip("test_hand6 not written yet")
+    assert (DATA / "test_hand6.jsonl").read_text() == to_jsonl(convert(src.read_text(),
+                                                                       "test_hand6"))

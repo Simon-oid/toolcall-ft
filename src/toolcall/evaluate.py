@@ -51,7 +51,7 @@ from .score import LEVELS, answer_ok, extract_call, parse_expected, score
 SPLITS = ("test_id", "test_ood")           # evaluated by default
 MT_SPLITS = ("mt_test_id", "mt_test_ood")  # episodes.py: multi-step and multi-turn
 REPORT_SPLITS = (*SPLITS, "test_hand", "test_hand2", "test_hand3",
-                 "test_hand4", "test_hand5", *MT_SPLITS)                # reported when present
+                 "test_hand4", "test_hand5", *MT_SPLITS, "test_hand6")  # when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
             "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)",
