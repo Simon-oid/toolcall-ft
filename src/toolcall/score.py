@@ -121,12 +121,24 @@ def extract_call(text: str) -> str | None:
     return None
 
 
+def answer_ok(reply: str, rule: dict) -> bool:
+    """A reply that repeats what the tool returned (episodes: the final
+    answer). `all`: every phrase is in the reply; `any`: at least one is.
+    Case-insensitive substrings: the check is that the fact reached the
+    user, not how it was worded."""
+    text = reply.lower()
+    has_all = all(p.lower() in text for p in rule.get("all", ()))
+    has_any = not rule.get("any") or any(p.lower() in text for p in rule["any"])
+    return has_all and has_any
+
+
 @dataclass(frozen=True)
 class Score:
     called: bool
     levels: dict[str, bool] | None     # None when the case expects no call
     abstained_ok: bool | None          # None when the case expects a call
     error: dict | None = None          # the validator's reason, for level 2
+    answered: bool | None = None       # episodes: a no-call reply that carries the fact
 
 
 def score(expected: Expected | None, call_text: str | None, verdict: dict | None) -> Score:

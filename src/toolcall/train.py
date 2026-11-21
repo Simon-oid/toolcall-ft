@@ -21,13 +21,15 @@ from pathlib import Path
 
 from .data import load
 from .distill import OUT as DISTILLED
-from .prompt import load_tools, render, tokenizer
+from .prompt import load_tools, render_case, tokenizer
 
 
 def completion(row: dict, distilled: dict[str, str]) -> str | None:
     """What the model should write for a case (TRL appends the end token)."""
     if row["expected"] is not None:
         return "<tool_call>\n" + json.dumps(row["call"], ensure_ascii=False) + "\n</tool_call>"
+    if "context" in row:                 # an episode step: its reply is in the data
+        return row["reply"]
     if row["intent"] == "no_tool":
         return distilled.get(row["request"])
     return row["reply"]
@@ -39,7 +41,7 @@ def examples(split: str, model: str, tools: list[dict], distilled: dict[str, str
         c = completion(row, distilled)
         if c is None:
             raise SystemExit(f"no target for {row['id']} ({row['intent']}): run toolcall.distill")
-        out.append({"prompt": render(row["request"], model, tools), "completion": c})
+        out.append({"prompt": render_case(row, model, tools), "completion": c})
     return out
 
 
@@ -64,6 +66,8 @@ def main() -> int:
     ap.add_argument("--accum", type=int, default=8, help="effective batch = batch x accum")
     ap.add_argument("--max-length", type=int, default=1536)
     ap.add_argument("--seed", type=int, default=20261110)
+    ap.add_argument("--multistep", action="store_true",
+                    help="also train on the episodes (mt_train, mt_val; episodes.py)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -72,6 +76,9 @@ def main() -> int:
                  for x in DISTILLED.read_text().splitlines()}
     train = examples("train", args.model, tools, distilled)
     val = examples("val", args.model, tools, distilled)
+    if args.multistep:
+        train += examples("mt_train", args.model, tools, distilled)
+        val += examples("mt_val", args.model, tools, distilled)
     longest = check_lengths(train + val, args.model, args.max_length)
     print(f"{len(train)} train, {len(val)} val examples; longest {longest} tokens")
     if args.dry_run:

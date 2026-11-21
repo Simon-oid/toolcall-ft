@@ -31,19 +31,27 @@ import os
 import random
 import subprocess
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from .api_backend import ApiChat
 from .backends import LlamaCpp, LlamaCppChat
 from .data import ROOT, load
 from .judge import judge
-from .prompt import call_or_none_schema, load_tools, messages, openai_tools, render
-from .score import LEVELS, extract_call, parse_expected, score
+from .prompt import (
+    call_or_none_schema,
+    case_messages,
+    load_tools,
+    openai_messages,
+    openai_tools,
+    render_case,
+)
+from .score import LEVELS, answer_ok, extract_call, parse_expected, score
 
 SPLITS = ("test_id", "test_ood")           # evaluated by default
+MT_SPLITS = ("mt_test_id", "mt_test_ood")  # episodes.py: multi-step and multi-turn
 REPORT_SPLITS = (*SPLITS, "test_hand", "test_hand2", "test_hand3",
-                 "test_hand4", "test_hand5")                            # reported when present
+                 "test_hand4", "test_hand5", *MT_SPLITS)                # reported when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
             "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)",
@@ -82,8 +90,10 @@ def score_cases(cases: list[dict], replies: list[str]) -> list[dict]:
     for case, reply, text in zip(cases, replies, texts, strict=True):
         verdict = next(verdicts) if text is not None else None
         s = score(parse_expected(case["expected"]), text, verdict)
-        out.append({**{k: case[k] for k in ("id", "split", "intent", "family", "request",
-                                             "expected")},
+        if case.get("answer") is not None:
+            s = replace(s, answered=text is None and answer_ok(reply, case["answer"]))
+        keep = ("id", "split", "intent", "family", "request", "expected", "episode", "step")
+        out.append({**{k: case[k] for k in keep if k in case},
                     "reply": reply, "call": text, "verdict": verdict, "score": asdict(s)})
     return out
 
@@ -101,6 +111,28 @@ def rates(rows: list[dict]) -> dict:
     return out
 
 
+def step_right(r: dict) -> bool:
+    """The call is right (level 4), or the model abstained and, where the
+    step asks for it, its reply carries the fact the tool returned."""
+    s = r["score"]
+    if r["expected"] is not None:
+        return s["levels"]["args"]
+    return bool(s["abstained_ok"]) and s.get("answered") is not False
+
+
+def episode_rates(rows: list[dict]) -> dict:
+    """Episodes (teacher-forced): right when every step is right."""
+    eps: dict[str, list[dict]] = {}
+    for r in rows:
+        eps.setdefault(r["episode"], []).append(r)
+    final = [r for r in rows if r["score"].get("answered") is not None]
+    return {"step right": bootstrap([float(step_right(r)) for r in rows]),
+            "answer grounded": bootstrap([float(r["score"]["answered"]) for r in final]),
+            "episode right": bootstrap([float(all(step_right(r) for r in e))
+                                        for e in eps.values()]),
+            "episodes": len(eps)}
+
+
 def fmt(m: tuple) -> str:
     return f"{m[0]:.3f} [{m[1]:.3f}, {m[2]:.3f}]"
 
@@ -109,8 +141,7 @@ def per_intent(rows: list[dict]) -> list[str]:
     lines = ["| intent | n | right (L4, or abstained) |", "|---|---|---|"]
     for intent in sorted({r["intent"] for r in rows}):
         rs = [r for r in rows if r["intent"] == intent]
-        ok = [float(r["score"]["levels"]["args"] if r["expected"] is not None
-                    else r["score"]["abstained_ok"]) for r in rs]
+        ok = [float(step_right(r)) for r in rs]
         lines.append(f"| {intent} | {len(rs)} | {sum(ok) / len(ok):.2f} |")
     return lines
 
@@ -127,6 +158,9 @@ def failures(rows: list[dict], limit: int = 12) -> list[str]:
         elif s["abstained_ok"] is False:
             out.append(f"- `{r['id']}` {r['intent']}: called {r['call'][:120]!r} | "
                        f"{r['request']!r}")
+        elif s.get("answered") is False:
+            out.append(f"- `{r['id']}` {r['intent']}: reply lacks the tool's fact | "
+                       f"{r['request']!r} -> {r['reply'][:140]!r}")
         if len(out) >= limit:
             break
     return out
@@ -140,7 +174,13 @@ def report(rows: list[dict], meta: dict) -> str:
         if not rs:
             continue
         m = rates(rs)
-        lines += [f"## {split} ({m['n'][0]} need a call, {m['n'][1]} need none)", "",
+        if "episode" in rs[0]:
+            e = episode_rates(rs)
+            m |= {k: v for k, v in e.items() if k != "episodes"}
+            m["n"] = (*m["n"], e["episodes"])
+        title = f"{m['n'][0]} need a call, {m['n'][1]} need none" + \
+            (f", {m['n'][2]} episodes" if len(m["n"]) > 2 else "")
+        lines += [f"## {split} ({title})", "",
                   "| metric | rate [95% CI] |", "|---|---|",
                   *[f"| {k} | {fmt(v)} |" for k, v in m.items() if k != "n"], "",
                   *per_intent(rs), "", "Failures (first 12):", "", *failures(rs), ""]
@@ -178,17 +218,17 @@ def main() -> int:
         backend = ApiChat(args.api_base, args.api_model, key, tools=openai_tools(tools),
                           reasoning_effort=args.reasoning_effort)
         props = backend.props()
-        replies = backend.generate([messages(c["request"]) for c in cases])
+        replies = backend.generate([openai_messages(case_messages(c)) for c in cases])
         usage = backend.usage
     elif args.decoding == "lazy":
         backend = LlamaCppChat(args.url, tools=openai_tools(tools))
         props = backend.props()
-        replies = backend.generate([messages(c["request"]) for c in cases])
+        replies = backend.generate([openai_messages(case_messages(c)) for c in cases])
     else:
         backend = LlamaCpp(args.url, json_schema=call_or_none_schema(tools)
                            if args.decoding == "eager" else None)
         props = backend.props()
-        replies = backend.generate([render(c["request"], args.model, tools) for c in cases])
+        replies = backend.generate([render_case(c, args.model, tools) for c in cases])
     rows = score_cases(cases, replies)
     meta = {"name": args.name, "model": args.api_model or args.model,
             "gguf": Path(props.get("model_path", "?")).name,

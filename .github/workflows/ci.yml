@@ -47,4 +47,5 @@ jobs:
       - name: committed data is what the generator produces
         run: |
           python -m toolcall.data
+          python -m toolcall.episodes
           git diff --exit-code data/
