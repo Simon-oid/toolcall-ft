@@ -99,7 +99,7 @@ def test_framings_never_touch_written_content():
 
 
 HAND = [json.loads(x) for name in ("test_hand.jsonl", "test_hand2.jsonl", "test_hand3.jsonl",
-                                      "test_hand4.jsonl")
+                                      "test_hand4.jsonl", "test_hand5.jsonl")
         for x in (Path(__file__).resolve().parents[1] / "data" / name).read_text().splitlines()]
 
 
@@ -164,3 +164,34 @@ def test_v4_wordings_are_not_test_wordings():
     stems += [t.lower() for t in VAGUE_TOPICS]
     stems = [x for x in stems if len(x) >= 8]
     assert not [(x, t) for x in stems for t in tests if x in t]
+
+
+def test_hand5_jsonl_is_generated_from_its_text_source():
+    # test_hand5 was written by hand as text; the JSONL must be exactly its conversion.
+    from toolcall.handset import convert, to_jsonl
+    data = Path(__file__).resolve().parents[1] / "data"
+    rows = convert((data / "test_hand5.txt").read_text(encoding="utf-8"), "test_hand5")
+    assert to_jsonl(rows) == (data / "test_hand5.jsonl").read_text(encoding="utf-8")
+    kinds = [r["intent"] for r in rows]
+    assert len(rows) == 39 and kinds.count("ambiguous") == 14
+
+
+def test_handset_expands_paths_and_marks_optional_arguments():
+    from toolcall.handset import convert
+    rows = convert("C | r | fs_read path=a.md offset?=1 limit=5\n"
+                   "C | r | fs_list path=docs/\nC | r | crag_search query~=[x, y] k=3\n"
+                   "A | r\n", "t")
+    assert rows[0]["expected"] == {"name": "fs_read", "optional": ["offset"], "arguments": {
+        "path": {"any_of": ["a.md", "./a.md"]}, "offset": 1, "limit": 5}}
+    assert rows[1]["expected"]["arguments"]["path"] == {"any_of": ["docs", "docs/", "./docs"]}
+    assert rows[2]["expected"]["arguments"] == {"query": {"contains_all": ["x", "y"]}, "k": 3}
+    assert rows[3]["intent"] == "ambiguous" and rows[3]["expected"] is None
+
+
+def test_handset_rejects_malformed_lines():
+    import pytest
+    from toolcall.handset import HandSetError, convert
+    for bad in ("X | r", "C | r", "A | r | fs_list", "C | r | fs_read path=a path=b",
+                "C | r | crag_search query~=x"):
+        with pytest.raises(HandSetError):
+            convert(bad, "t")

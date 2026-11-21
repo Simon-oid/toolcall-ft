@@ -1,0 +1,54 @@
+# test_hand5 — written by Simone without seeing the v4 training data or test_hand4.
+# Format and rules: ~/studio-progetti/toolcall-ft/scheda-test_hand5.md
+# One case per line:  TYPE | request [| tool arg=value ...]
+# TYPE: C call (21), A ambiguous (14), N no tool (2), U unsupported (2)
+# Reviewed 2026-11-21 before any evaluation: line 24 reworded (contradictory), the 'models
+# directory' case dropped and the 'deployment diagram' case moved to C (both borderline),
+# free-text rules loosened to stems, root listing accepts path . or /.
+
+# --- C: calls (21) ---
+C | show me the top-level directory listing | fs_list path?=.|/
+C | what files are inside the reports/ folder? | fs_list path=reports/
+C | read the file config.yaml for me | fs_read path=config.yaml
+C | can you show me lines 25 through 40 of src/main.py? | fs_read path=src/main.py offset=25 limit=16
+C | give me just the first 10 lines of README.md | fs_read path=README.md offset?=1 limit=10
+C | I need the metadata for data/output.csv — size, last modified, that kind of thing | fs_stat path=data/output.csv
+C | check the permissions and size of the logs/ directory | fs_stat path=logs/
+C | search the knowledge base for documents about retry logic and exponential backoff | crag_search query~=[retr, backoff]
+C | find anything in the docs related to authentication tokens | crag_search query~=[authentication, token]
+C | look up API rate limiting in the knowledge base, just give me the top 3 results | crag_search query~=[rate, limit] k=3
+C | how many chunks are in the index right now? | crag_stats
+C | give me the full crag index stats — path, number of files, embedding size, everything | crag_stats
+C | create a file called notes/meeting.md with the text "Action items from Nov 21 standup" | fs_write path=notes/meeting.md content~=[action items, nov 21, standup]
+C | write a .gitignore file that contains __pycache__/ and .env on separate lines | fs_write path=.gitignore content~=[__pycache__/, .env]
+C | what's in the src/ directory? | fs_list path=src/
+C | read experiments/results.json please | fs_read path=experiments/results.json
+C | search for anything about vector similarity and cosine distance | crag_search query~=[vector, similarity, cosine]
+C | show me 20 lines of logs/server.log starting at line 80 | fs_read path=logs/server.log offset=80 limit=20
+C | get me the file info for README.md | fs_stat path=README.md
+C | write a file at tmp/scratch.txt with "quick test" as content | fs_write path=tmp/scratch.txt content~=[quick test]
+C | find the part about deployment in the docs, the one with the diagram | crag_search query~=[deployment]
+
+# --- A: ambiguous (14) ---
+A | can you read that file I mentioned earlier?
+A | search for it in the knowledge base
+A | write that summary to a file
+A | show me the contents of the config file — not the main one, the other one
+A | check the stats on that folder
+A | look up the error we were discussing
+A | read the relevant section of the documentation
+A | I need you to save this somewhere as a markdown file
+A | search the knowledge base for 5 results about... actually the topic I told you before
+A | can you read the lines around the function definition?
+A | write the corrected version back to the file
+A | get the metadata for the file I uploaded yesterday
+A | can you overwrite that config with the new values?
+A | check what's inside the output directory — you know which one
+
+# --- N: no tool (2) ---
+N | what's the difference between utf-8 and ascii encoding?
+N | hey, thanks for the help earlier — that fixed it
+
+# --- U: unsupported (2) ---
+U | can you delete the old log files in logs/?
+U | rename data/draft.csv to data/final.csv
