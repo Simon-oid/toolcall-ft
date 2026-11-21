@@ -190,6 +190,7 @@ def test_handset_expands_paths_and_marks_optional_arguments():
 
 def test_handset_rejects_malformed_lines():
     import pytest
+
     from toolcall.handset import HandSetError, convert
     for bad in ("X | r", "C | r", "A | r | fs_list", "C | r | fs_read path=a path=b",
                 "C | r | crag_search query~=x"):

@@ -92,7 +92,7 @@ def _row(kind: str, fields: list[str]) -> tuple[str, dict | None]:
 
 
 def convert(text: str, split: str) -> list[dict]:
-    rows = []
+    rows: list[dict] = []
     for number, line in enumerate(text.splitlines(), start=1):
         line = line.strip()
         if not line or line.startswith("#"):
