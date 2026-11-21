@@ -22,7 +22,7 @@ import random
 import sys
 from pathlib import Path
 
-from toolcall.evaluate import REPORT_SPLITS
+from toolcall.evaluate import REPORT_SPLITS, step_right
 
 ROOT = Path(__file__).resolve().parent.parent
 RESAMPLES = 10_000
@@ -35,6 +35,8 @@ def outcome(r: dict, metric: str) -> float | None:
         return float(s["levels"]["args"]) if r["expected"] is not None else None
     if metric == "abstain":
         return float(s["abstained_ok"]) if r["expected"] is None else None
+    if metric == "step":                  # episodes: a call right, or a grounded reply
+        return float(step_right(r))
     return float(s["called"] == (r["expected"] is not None))
 
 
@@ -76,7 +78,9 @@ def main() -> int:
             continue
         print(f"## {split}\n\n| metric | n | new - base [95% CI] | fixed | broken | McNemar p |")
         print("|---|---|---|---|---|---|")
-        for metric in ("right", "abstain", "decision"):
+        episodes = "episode" in base[ids[0]]
+        metrics = ("right", "abstain", "decision", *(("step",) if episodes else ()))
+        for metric in metrics:
             n, m, lo, hi, fx, br, p = paired(base, new, ids, metric)
             print(f"| {metric} | {n} | {m:+.3f} [{lo:+.3f}, {hi:+.3f}] | {fx} | {br} | {p:.2g} |")
         print()
