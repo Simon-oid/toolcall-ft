@@ -1,0 +1,320 @@
+# test_hand6 — episodes written by Simone without seeing the episode generator, its data
+# (data/mt_*.jsonl) or any v5 result. Committed before v5 was evaluated on it.
+# Written by hand; an assistant only summarised the finished set (no edits).
+# Two final replies test arithmetic on purpose: test_hand6-021 (763, the sum of the six
+# values read) and test_hand6-064 (408 = 17 x 24, no tool needed).
+# Format: src/toolcall/handset_mt.py. One message per line, a blank line between episodes:
+#   E | label   U | user   c | history call   s | history reply
+#   C | scored call   r | tool result (\n = newline)   A | facts the final reply must contain
+
+# ======== MULTI-STEP EPISODES (1–16) ========
+
+# 1 — list a directory, then read the matching file
+E | find_and_read_changelog
+U | I need the latest entry from the changelog somewhere in the docs/ folder
+C | fs_list path=docs/
+r | file  2340  changelog.md\nfile  870  setup-guide.md\ndir  0  images
+C | fs_read path=docs/changelog.md limit?=20
+r | ## 2026-11-18\n- fixed UTF-8 handling in export\n- bumped dependency on lz4 to 1.10\n\n## 2026-11-10\n- added batch mode to crag_search
+A | 2026-11-18; UTF-8; lz4
+
+# 2 — search the knowledge base, then read the source file
+E | crag_then_read_source
+U | find anything about rate limiting and show me the actual file it comes from
+C | crag_search query~=[rate, limit]
+r | [cos 0.831  bm25 7.40  fusion 0.041] config/policies.md\nAll API endpoints enforce a rate limit of 200 requests per minute per user.
+C | fs_read path=config/policies.md
+r | # API Policies\n\nAll API endpoints enforce a rate limit of 200 requests per minute per user.\nExceeding the limit returns HTTP 429.\n\n## Authentication\nBearer tokens expire after 24 hours.
+A | 200 requests per minute; 429
+
+# 3 — stat a file to check size, then read it
+E | check_size_then_read
+U | how big is env.yaml and can you show me what's inside?
+C | fs_stat path=env.yaml
+r | path:     env.yaml\ntype:     file\nsize:     87\nmodified: 2026-09-14T08:30:00Z\nmode:     0644
+C | fs_read path=env.yaml
+r | python: 3.11\ndependencies:\n  - torch>=2.1\n  - transformers\n  - datasets\ndev:\n  - pytest
+A | 87; torch; transformers; datasets
+
+# 4 — read a file, then write an updated version
+E | read_edit_write
+U | the file src/constants.py has a MAX_RETRIES value, double it
+C | fs_read path=src/constants.py
+r | MAX_RETRIES = 3\nTIMEOUT_SEC = 30\nBUFFER_KB = 256
+C | fs_write path=src/constants.py content~=[MAX_RETRIES, 6, TIMEOUT_SEC, 30, BUFFER_KB, 256]
+r | wrote 52 bytes to src/constants.py
+A | 6; src/constants.py
+
+# 5 — list root, then drill into a subfolder, then read
+E | drill_down_two_levels
+U | find me the readme inside the experiments folder, it should be nested somewhere
+C | fs_list path=experiments/
+r | dir  0  run-042\ndir  0  run-043\nfile  110  params.json
+C | fs_list path=experiments/run-043/
+r | file  3200  metrics.csv\nfile  480  README.md\nfile  19200  checkpoint.pt
+C | fs_read path=experiments/run-043/README.md
+r | # Run 043\nBaseline with learning rate 5e-4.\nFinal eval loss: 0.312\nEpochs: 15
+A | 5e-4; 0.312; 15
+
+# 6 — crag search, result is not helpful, search again with different terms
+E | search_refine_search
+U | what port does the debug server listen on
+C | crag_search query~=[debug, server, port]
+r | [cos 0.410  bm25 2.80  fusion 0.011] docs/faq.md\nQ: How do I enable debug mode?\nA: Set DEBUG=1 in your environment.
+C | crag_search query~=[listen, port, serv]
+r | [cos 0.790  bm25 6.50  fusion 0.038] infra/compose.yml\nThe debug proxy binds to port 9222 on localhost.
+A | 9222
+
+# 7 — read a CSV, then write a summary file
+E | read_csv_write_summary
+U | read data/sales.csv and create a file called data/sales_total.txt with just the grand total
+C | fs_read path=data/sales.csv
+r | region,q1,q2\nnorth,120,135\nsouth,98,110\neast,142,158
+C | fs_write path=data/sales_total.txt content~=[763]
+r | wrote 25 bytes to data/sales_total.txt
+A | 763; data/sales_total.txt
+
+# 8 — crag_stats then crag_search
+E | check_index_then_search
+U | first tell me how many documents are in the index, then look up "embedding dimension"
+C | crag_stats
+r | db:     data/knowledge.db\nchunks: 1420\nfiles:  38\ndim:    768
+C | crag_search query~=[embed, dimension]
+r | [cos 0.880  bm25 8.10  fusion 0.045] research/architecture.md\nThe sentence encoder outputs 768-dimensional vectors projected down to 384 for retrieval.
+A | 1420; 38; 768; 384
+
+# 9 — list a folder, expected file is missing, then search for it
+E | missing_file_fallback_search
+U | read the migration guide, it should be in ops/
+C | fs_list path=ops/
+r | file  610  deploy.sh\nfile  340  rollback.sh\ndir  0  terraform
+C | crag_search query~=[migrat, guide]
+r | [cos 0.760  bm25 5.90  fusion 0.034] wiki/db-migration.md\nStep 1: run pg_dump on the source.\nStep 2: transfer and restore with pg_restore.\nStep 3: validate row counts.
+A | pg_dump; pg_restore; row counts
+
+# 10 — write a new file, then verify it was created
+E | write_then_verify
+U | create a file called tmp/reminder.txt saying "submit report by Friday" and then confirm it exists
+C | fs_write path=tmp/reminder.txt content~=[submit, report, Friday]
+r | wrote 30 bytes to tmp/reminder.txt
+C | fs_stat path=tmp/reminder.txt
+r | path:     tmp/reminder.txt\ntype:     file\nsize:     30\nmodified: 2026-11-21T17:45:00Z\nmode:     0644
+A | 30; tmp/reminder.txt
+
+# 11 — read two separate files and compare
+E | compare_two_configs
+U | compare the timeout value in config/prod.yaml vs config/staging.yaml
+C | fs_read path=config/prod.yaml
+r | timeout_ms: 5000\nretries: 2\nlog_level: warn
+C | fs_read path=config/staging.yaml
+r | timeout_ms: 15000\nretries: 5\nlog_level: debug
+A | 5000; 15000
+
+# 12 — stat to check permissions, then read
+E | check_perms_then_read
+U | is secrets/api_key.env readable? if so show me what's in it
+C | fs_stat path=secrets/api_key.env
+r | path:     secrets/api_key.env\ntype:     file\nsize:     44\nmodified: 2026-10-01T12:00:00Z\nmode:     0600
+C | fs_read path=secrets/api_key.env
+r | GEMINI_KEY=sk-abc123def456\nREGION=us-central1
+A | sk-abc123def456; us-central1
+
+# 13 — crag search then write the answer to a file
+E | search_and_save_answer
+U | look up the default chunk overlap and save it to notes/overlap.txt
+C | crag_search query~=[chunk, overlap]
+r | [cos 0.820  bm25 7.00  fusion 0.039] src/chunker.py\nThe default overlap is 64 tokens. Chunk size is 512.
+C | fs_write path=notes/overlap.txt content~=[64]
+r | wrote 18 bytes to notes/overlap.txt
+A | 64; notes/overlap.txt
+
+# 14 — read a file with offset, then read the next page
+E | paginated_read
+U | the log at var/app.log is huge, show me lines 50 to 60 and then 61 to 70
+C | fs_read path=var/app.log offset=50 limit=11
+r | 2026-11-20 09:12:01 INFO  request handled in 42ms\n2026-11-20 09:12:02 WARN  connection pool near capacity (48/50)\n2026-11-20 09:12:03 INFO  request handled in 38ms\n2026-11-20 09:12:04 ERROR query timeout after 5000ms on table orders\n2026-11-20 09:12:05 INFO  retry succeeded\n2026-11-20 09:12:06 INFO  request handled in 29ms\n2026-11-20 09:12:07 INFO  gc pause 12ms\n2026-11-20 09:12:08 INFO  request handled in 31ms\n2026-11-20 09:12:09 WARN  slow query 1200ms on table inventory\n2026-11-20 09:12:10 INFO  request handled in 44ms\n2026-11-20 09:12:11 INFO  cache hit ratio 0.87
+C | fs_read path=var/app.log offset=61 limit=10
+r | 2026-11-20 09:12:12 INFO  request handled in 27ms\n2026-11-20 09:12:13 INFO  healthcheck ok\n2026-11-20 09:12:14 WARN  disk usage 91%\n2026-11-20 09:12:15 INFO  request handled in 35ms\n2026-11-20 09:12:16 INFO  connection recycled\n2026-11-20 09:12:17 INFO  request handled in 40ms\n2026-11-20 09:12:18 ERROR  OOM killer invoked pid 4421\n2026-11-20 09:12:19 INFO  process restarted\n2026-11-20 09:12:20 INFO  request handled in 55ms\n2026-11-20 09:12:21 INFO  warmup complete
+A | query timeout; 5000ms; orders; disk usage 91%; OOM killer; 4421
+
+# 15 — list then stat a specific item
+E | list_then_stat_largest
+U | which file in assets/ is the biggest? I need its exact byte size and modification date
+C | fs_list path=assets/
+r | file  5120  logo.png\nfile  230  favicon.ico\nfile  48000  hero-banner.jpg\nfile  310  style.css
+C | fs_stat path=assets/hero-banner.jpg
+r | path:     assets/hero-banner.jpg\ntype:     file\nsize:     48000\nmodified: 2026-08-19T14:22:00Z\nmode:     0644
+A | hero-banner.jpg; 48000; 2026-08-19
+
+# 16 — read a Makefile, then run a write to fix a target
+E | read_makefile_fix_target
+U | the build target in Makefile uses python3.9, change it to python3.11
+C | fs_read path=Makefile
+r | .PHONY: build test\n\nbuild:\n\tpython3.9 setup.py sdist bdist_wheel\n\ntest:\n\tpytest tests/ -v
+C | fs_write path=Makefile content~=[python3.11, setup.py, sdist, pytest]
+r | wrote 85 bytes to Makefile
+A | python3.11; Makefile
+
+# ======== MULTI-TURN EPISODES (17–30) ========
+
+# 17 — previous turn read a file, now user asks about it
+E | followup_line_count
+U | can you read the schedule at planning/sprint.md
+c | fs_read path="planning/sprint.md"
+r | ## Sprint 14\n- ticket-301: auth refactor\n- ticket-302: dashboard graphs\n- ticket-305: CSV export\n\n## Sprint 15\n- ticket-310: onboarding flow\n- ticket-311: notification service
+s | Here's the sprint plan. Sprint 14 has three tickets (301, 302, 305) and Sprint 15 has two (310, 311).
+U | how many tickets total?
+A | 5
+
+# 18 — user refers to a file from previous turn with "it"
+E | followup_size_of_it
+U | show me the manifest at pkg/manifest.json
+c | fs_read path="pkg/manifest.json"
+r | {"name": "toolcall", "version": "0.9.3", "entrypoint": "main.py", "license": "MIT"}
+s | The manifest says the package is toolcall version 0.9.3 with entrypoint main.py and MIT license.
+U | how large is it in bytes?
+C | fs_stat path=pkg/manifest.json
+r | path:     pkg/manifest.json\ntype:     file\nsize:     82\nmodified: 2026-11-15T09:00:00Z\nmode:     0644
+A | 82
+
+# 19 — previous turn listed a folder, user says "open the second one"
+E | open_the_second
+U | what's in the notebooks/ directory?
+c | fs_list path="notebooks/"
+r | file  14200  analysis.ipynb\nfile  8700  exploration.ipynb\nfile  22500  training_curves.ipynb
+s | There are three notebooks: analysis.ipynb, exploration.ipynb, and training_curves.ipynb.
+U | open the second one
+C | fs_read path=notebooks/exploration.ipynb
+r | {"cells": [{"source": "import pandas as pd\ndf = pd.read_csv('results.csv')\ndf.describe()"}]}
+A | pandas; results.csv; describe
+
+# 20 — previous turn did a search, user wants to read the found doc
+E | followup_read_crag_hit
+U | search for tokenizer vocabulary size
+c | crag_search query="tokenizer vocabulary size"
+r | [cos 0.790  bm25 6.80  fusion 0.037] models/tokenizer.md\nThe BPE tokenizer uses a vocabulary of 32000 tokens trained on a 50GB corpus.
+s | Found it in models/tokenizer.md — the vocabulary has 32000 tokens, BPE-based, trained on 50GB.
+U | pull up that whole file
+C | fs_read path=models/tokenizer.md
+r | # Tokenizer\n\nThe BPE tokenizer uses a vocabulary of 32000 tokens trained on a 50GB corpus.\n\nSpecial tokens:\n- <pad> id 0\n- <eos> id 1\n- <unk> id 2\n\nMax sequence length: 2048
+A | 32000; <pad>; <eos>; <unk>; 2048
+
+# 21 — user thanks after a completed action (no-call episode)
+E | thanks_no_action
+U | save a note to journal/today.md saying we finished the data cleanup
+c | fs_write path="journal/today.md" content="Data cleanup completed on 2026-11-21."
+r | wrote 42 bytes to journal/today.md
+s | Done — saved the note to journal/today.md.
+U | thanks, that's all for now
+A |
+
+# 22 — user asks a question the previous result already answers (no-call)
+E | answer_from_context
+U | what does the config at app/settings.toml say?
+c | fs_read path="app/settings.toml"
+r | [server]\nhost = "0.0.0.0"\nport = 8080\nworkers = 4\n\n[database]\nurl = "postgres://localhost:5432/appdb"\npool_size = 10
+s | The settings file configures a server on 0.0.0.0:8080 with 4 workers and a Postgres database at localhost:5432/appdb with pool size 10.
+U | and what port is the database on?
+A | 5432
+
+# 23 — previous turn got an error, user asks about same path (no-call)
+E | error_already_seen
+U | read archive/old_notes.txt
+c | fs_read path="archive/old_notes.txt"
+r | error: no such file or directory
+s | That file doesn't exist — archive/old_notes.txt was not found.
+U | hmm ok, is there any chance it's just empty?
+A | no such file
+
+# 24 — user refers to "same folder" from previous turn
+E | same_folder_different_file
+U | list the scripts/ directory
+c | fs_list path="scripts/"
+r | file  450  deploy.sh\nfile  220  backup.sh\nfile  380  migrate.py
+s | The scripts folder has three files: deploy.sh, backup.sh, and migrate.py.
+U | read the python one in that same folder
+C | fs_read path=scripts/migrate.py
+r | #!/usr/bin/env python3\nimport subprocess\nimport sys\n\ndef run_migration(env):\n    cmd = f"alembic upgrade head --env {env}"\n    subprocess.run(cmd, shell=True, check=True)\n\nif __name__ == "__main__":\n    run_migration(sys.argv[1])
+A | alembic; upgrade head
+
+# 25 — previous turn wrote a file, user asks to verify its content
+E | verify_written_file
+U | write "hello world" into tmp/greeting.txt
+c | fs_write path="tmp/greeting.txt" content="hello world"
+r | wrote 11 bytes to tmp/greeting.txt
+s | Written to tmp/greeting.txt, 11 bytes.
+U | read it back to make sure it's correct
+C | fs_read path=tmp/greeting.txt
+r | hello world
+A | hello world
+
+# 26 — ambiguous reference, should ask for clarification (no-call)
+E | ambiguous_which_file
+U | list the reports folder
+c | fs_list path="reports/"
+r | file  4100  q1-revenue.csv\nfile  3800  q2-revenue.csv\nfile  5200  q3-revenue.csv\nfile  4900  q4-revenue.csv
+s | Four quarterly revenue reports: q1 through q4.
+U | delete that file
+A |
+
+# 27 — user changes topic entirely (no-call)
+E | topic_change_no_call
+U | check the size of images/banner.png
+c | fs_stat path="images/banner.png"
+r | path:     images/banner.png\ntype:     file\nsize:     34500\nmodified: 2026-07-11T10:15:00Z\nmode:     0644
+s | banner.png is 34500 bytes, last modified on July 11.
+U | actually never mind that, what's 17 times 24?
+A | 408
+
+# 28 — previous turn listed root, user asks to explore a subfolder and then read
+E | explore_subdir_from_root
+U | show me the top-level contents
+c | fs_list
+r | dir  0  src\ndir  0  tests\ndir  0  data\nfile  1200  README.md\nfile  340  pyproject.toml
+s | Five items at the root: src/, tests/, data/, README.md, and pyproject.toml.
+U | go into tests and find any conftest
+C | fs_list path=tests/
+r | file  2100  test_core.py\nfile  1800  test_utils.py\nfile  450  conftest.py\ndir  0  fixtures
+C | fs_read path=tests/conftest.py
+r | import pytest\n\n@pytest.fixture\ndef sample_data():\n    return {"key": "value", "count": 42}\n\n@pytest.fixture\ndef tmp_dir(tmp_path):\n    d = tmp_path / "sub"\n    d.mkdir()\n    return d
+A | sample_data; 42; tmp_dir
+
+# 29 — search yields nothing useful (no-call, should say so)
+E | search_no_results
+U | look up information about kubernetes pod autoscaling
+c | crag_search query="kubernetes pod autoscaling"
+r | [cos 0.210  bm25 1.10  fusion 0.005] misc/glossary.md\nKubernetes: an open-source container orchestration platform.
+s | The search only returned a glossary definition of Kubernetes — nothing specifically about pod autoscaling.
+U | can you dig deeper?
+C | crag_search query~=[autoscal, pod, hpa]
+r | [cos 0.190  bm25 0.90  fusion 0.004] misc/glossary.md\nHPA: Horizontal Pod Autoscaler.
+A | any: not enough information; no detailed documentation; only a glossary entry
+
+# 30 — previous turn read a file, user asks to write an adjacent one
+E | write_sibling_file
+U | read the intro at chapters/ch1.md
+c | fs_read path="chapters/ch1.md"
+r | # Chapter 1: Getting Started\n\nThis guide walks you through the initial setup.\nPrerequisites: Python 3.10+, pip, git.
+s | Chapter 1 covers initial setup. Prerequisites are Python 3.10+, pip, and git.
+U | create ch2.md in the same folder with a chapter about configuration
+C | fs_write path=chapters/ch2.md content~=[Chapter 2, configur]
+r | wrote 95 bytes to chapters/ch2.md
+A | chapters/ch2.md
+
+# 31 — user says the result is wrong, should not call again (no-call)
+E | user_disputes_result
+U | search for the max upload size
+c | crag_search query="max upload size"
+r | [cos 0.750  bm25 6.20  fusion 0.035] infra/nginx.conf\nclient_max_body_size 50m;
+s | According to nginx.conf the max upload size is 50 MB.
+U | that can't be right, we changed it to 100 last week
+A | any: 50; nginx.conf; may not be updated; might need to update
+
+# 32 — crag_stats shows empty index (no-call)
+E | empty_index
+U | how many documents are indexed right now?
+c | crag_stats
+r | db:     data/knowledge.db\nchunks: 0\nfiles:  0\ndim:    768
+s | The index is empty — zero chunks and zero files.
+U | ok search for anything about deployment
+A | any: index is empty; no documents; nothing to search
