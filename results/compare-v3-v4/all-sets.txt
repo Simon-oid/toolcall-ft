@@ -1,0 +1,204 @@
+### ft-1.5b-v3-free -> ft-1.5b-v4-free
+# ft-1.5b-v4-free vs ft-1.5b-v3-free
+
+## test_id
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 120 | +0.008 [+0.000, +0.025] | 1 | 0 | 1 |
+| abstain | 60 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 180 | +0.006 [+0.000, +0.017] | 1 | 0 | 1 |
+
+## test_ood
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 189 | -0.011 [-0.037, +0.016] | 3 | 5 | 0.73 |
+| abstain | 105 | +0.010 [-0.029, +0.057] | 3 | 2 | 1 |
+| decision | 294 | -0.017 [-0.041, +0.003] | 3 | 8 | 0.23 |
+
+
+### hand-ft-1.5b-v3-free -> hand-ft-1.5b-v4-free
+# hand-ft-1.5b-v4-free vs hand-ft-1.5b-v3-free
+
+## test_hand
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 39 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 15 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 54 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+
+
+### hand2-ft-1.5b-v3-free -> hand2-ft-1.5b-v4-free
+# hand2-ft-1.5b-v4-free vs hand2-ft-1.5b-v3-free
+
+## test_hand2
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 32 | +0.062 [+0.000, +0.156] | 2 | 0 | 0.5 |
+| abstain | 16 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 48 | +0.021 [+0.000, +0.062] | 1 | 0 | 1 |
+
+
+### hand3-ft-1.5b-v3-free -> hand3-ft-1.5b-v4-free
+# hand3-ft-1.5b-v4-free vs hand3-ft-1.5b-v3-free
+
+## test_hand3
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 34 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 14 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 48 | +0.021 [+0.000, +0.062] | 1 | 0 | 1 |
+
+
+### hand4-ft-1.5b-v3-free -> hand4-ft-1.5b-v4-free
+# hand4-ft-1.5b-v4-free vs hand4-ft-1.5b-v3-free
+
+## test_hand4
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 20 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 20 | +0.150 [+0.000, +0.300] | 3 | 0 | 0.25 |
+| decision | 40 | +0.075 [+0.000, +0.175] | 3 | 0 | 0.25 |
+
+
+### ft-1.5b-v3-s1-free -> ft-1.5b-v4-s1-free
+# ft-1.5b-v4-s1-free vs ft-1.5b-v3-s1-free
+
+## test_id
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 120 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 60 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 180 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+
+## test_ood
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 189 | -0.016 [-0.042, +0.005] | 1 | 4 | 0.38 |
+| abstain | 105 | +0.048 [+0.010, +0.095] | 5 | 0 | 0.062 |
+| decision | 294 | +0.007 [-0.010, +0.027] | 5 | 3 | 0.73 |
+
+
+### hand-ft-1.5b-v3-s1-free -> hand-ft-1.5b-v4-s1-free
+# hand-ft-1.5b-v4-s1-free vs hand-ft-1.5b-v3-s1-free
+
+## test_hand
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 39 | -0.077 [-0.179, +0.000] | 0 | 3 | 0.25 |
+| abstain | 15 | +0.067 [+0.000, +0.200] | 1 | 0 | 1 |
+| decision | 54 | +0.019 [+0.000, +0.056] | 1 | 0 | 1 |
+
+
+### hand2-ft-1.5b-v3-s1-free -> hand2-ft-1.5b-v4-s1-free
+# hand2-ft-1.5b-v4-s1-free vs hand2-ft-1.5b-v3-s1-free
+
+## test_hand2
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 32 | +0.062 [+0.000, +0.156] | 2 | 0 | 0.5 |
+| abstain | 16 | +0.062 [+0.000, +0.188] | 1 | 0 | 1 |
+| decision | 48 | +0.021 [+0.000, +0.062] | 1 | 0 | 1 |
+
+
+### hand3-ft-1.5b-v3-s1-free -> hand3-ft-1.5b-v4-s1-free
+# hand3-ft-1.5b-v4-s1-free vs hand3-ft-1.5b-v3-s1-free
+
+## test_hand3
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 34 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 14 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| decision | 48 | +0.021 [+0.000, +0.062] | 1 | 0 | 1 |
+
+
+### hand4-ft-1.5b-v3-s1-free -> hand4-ft-1.5b-v4-s1-free
+# hand4-ft-1.5b-v4-s1-free vs hand4-ft-1.5b-v3-s1-free
+
+## test_hand4
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 20 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 20 | +0.250 [+0.100, +0.450] | 5 | 0 | 0.062 |
+| decision | 40 | +0.125 [+0.025, +0.225] | 5 | 0 | 0.062 |
+
+
+### ft-1.5b-v3-s2-free -> ft-1.5b-v4-s2-free
+# ft-1.5b-v4-s2-free vs ft-1.5b-v3-s2-free
+
+## test_id
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 120 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 60 | +0.017 [+0.000, +0.050] | 1 | 0 | 1 |
+| decision | 180 | +0.006 [+0.000, +0.017] | 1 | 0 | 1 |
+
+## test_ood
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 189 | -0.011 [-0.037, +0.016] | 2 | 4 | 0.69 |
+| abstain | 105 | +0.105 [+0.048, +0.171] | 11 | 0 | 0.00098 |
+| decision | 294 | +0.024 [+0.000, +0.051] | 11 | 4 | 0.12 |
+
+
+### hand-ft-1.5b-v3-s2-free -> hand-ft-1.5b-v4-s2-free
+# hand-ft-1.5b-v4-s2-free vs hand-ft-1.5b-v3-s2-free
+
+## test_hand
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 39 | -0.051 [-0.128, +0.000] | 0 | 2 | 0.5 |
+| abstain | 15 | +0.133 [+0.000, +0.333] | 2 | 0 | 0.5 |
+| decision | 54 | +0.037 [+0.000, +0.093] | 2 | 0 | 0.5 |
+
+
+### hand2-ft-1.5b-v3-s2-free -> hand2-ft-1.5b-v4-s2-free
+# hand2-ft-1.5b-v4-s2-free vs hand2-ft-1.5b-v3-s2-free
+
+## test_hand2
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 32 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 16 | +0.062 [+0.000, +0.188] | 1 | 0 | 1 |
+| decision | 48 | +0.021 [+0.000, +0.062] | 1 | 0 | 1 |
+
+
+### hand3-ft-1.5b-v3-s2-free -> hand3-ft-1.5b-v4-s2-free
+# hand3-ft-1.5b-v4-s2-free vs hand3-ft-1.5b-v3-s2-free
+
+## test_hand3
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 34 | +0.029 [+0.000, +0.088] | 1 | 0 | 1 |
+| abstain | 14 | +0.071 [+0.000, +0.214] | 1 | 0 | 1 |
+| decision | 48 | +0.042 [+0.000, +0.104] | 2 | 0 | 0.5 |
+
+
+### hand4-ft-1.5b-v3-s2-free -> hand4-ft-1.5b-v4-s2-free
+# hand4-ft-1.5b-v4-s2-free vs hand4-ft-1.5b-v3-s2-free
+
+## test_hand4
+
+| metric | n | new - base [95% CI] | fixed | broken | McNemar p |
+|---|---|---|---|---|---|
+| right | 20 | +0.000 [+0.000, +0.000] | 0 | 0 | 1 |
+| abstain | 20 | +0.350 [+0.150, +0.550] | 7 | 0 | 0.016 |
+| decision | 40 | +0.175 [+0.075, +0.300] | 7 | 0 | 0.016 |
+
+
