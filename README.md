@@ -32,6 +32,7 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | **Qwen2.5-1.5B + LoRA (v2)**, seed 0 | **0.92** [0.88, 0.96] | **0.95 · 0.91** | **0.99** |
 | same recipe, 3 seeds: mean ± sd | 0.92 ± 0.05 | 0.97 ± 0.01 · 0.91 ± 0.00 | 0.97 ± 0.04 |
 | **v3**, 3 seeds: mean ± sd | **0.96 ± 0.01** | 0.95 ± 0.03 · 0.92 ± 0.05 | 0.94 ± 0.04 |
+| **v4**, 3 seeds: mean ± sd | 0.95 ± 0.01 | 0.91 ± 0.03 · 0.96 ± 0.02 | **0.99 ± 0.01** |
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -321,6 +322,49 @@ seed; per seed, v3's gain on test_ood right calls is +0.05, +0.07 and
 - **The trailing-instruction failure is only halved,** and on the older
   hand-written sets the two versions are level within their intervals.
 
+**v4: asking instead of guessing.** v4 adds 140 training cases, all
+ambiguous, and changes nothing else: requests shaped like v3's new cases
+but with the deciding argument missing (a listing with no folder, a search
+with no topic, a write with no file or no content), each answered with a
+clarifying question. The evaluation splits are byte-identical, and the
+three seeds are the same as v2's and v3's.
+
+Two hand-written sets measure it, and they disagree on how much:
+- [`data/test_hand4.jsonl`](data/test_hand4.jsonl) (40 cases, 16 ambiguous)
+  was committed before v4 was trained, but written together with the v4
+  training data, so it shares their idea of what an ambiguous request is.
+- [`data/test_hand5.txt`](data/test_hand5.txt) (39 cases, 14 ambiguous) was
+  written from a one-page brief, the tools and the case types only, by
+  someone who had not seen `data.py`, the v4 cases or test_hand4. It was
+  committed before any model saw it, and
+  [`toolcall.handset`](src/toolcall/handset.py) converts it to JSONL.
+
+| | v3, 3 seeds | v4, 3 seeds | fixed / broken, pooled |
+|---|---|---|---|
+| abstains when it should (test_ood) | 0.94 ± 0.04 | **0.99 ± 0.01** | 19 / 2 |
+| abstains when it should (test_hand5, independent) | 0.80 ± 0.06 | **0.89 ± 0.00** | 5 / 0 |
+| abstains when it should (test_hand4, written with the data) | 0.67 ± 0.06 | 0.92 ± 0.06 | 15 / 0 |
+| right call (test_ood) | 0.96 ± 0.01 | 0.95 ± 0.01 | 6 / 13 |
+| right call (test_hand5) | 0.94 ± 0.03 | 0.92 ± 0.03 | 0 / 1 |
+| right call (test_hand) | 0.95 ± 0.03 | 0.91 ± 0.03 | 0 / 5 |
+
+Per-seed paired tests are in
+[`results/compare-v3-v4/`](results/compare-v3-v4/).
+- **It asks more, on every set.** No seed abstains worse than v3 on any
+  set, and v4 asks on 12 of test_hand5's 14 ambiguous requests in all
+  three seeds, where v3 varied with the seed (9 to 11).
+- **How much depends on who wrote the test.** On test_hand5 the gain in
+  abstention is +0.06, +0.06 and +0.17 per seed. That is a third to a half of
+  test_hand4's +0.15, +0.25 and +0.35. The independent set is the number to
+  quote.
+- **It costs a little precision on clear requests.** Right calls fall by
+  0.01–0.02 on test_ood in every seed, each interval including zero, and on
+  test_hand seeds 1 and 2 break 5 calls and fix none. The broken calls lose
+  a detail rather than pick the wrong action: no `limit` for "the first 3
+  lines", `limit 30` for lines 100 to 120, `fs_list` for "is photos/2026 a
+  directory?". v4 learned caution, and some of it spills onto requests that
+  were clear.
+
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
 [askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
@@ -337,6 +381,24 @@ retrieval. A 7B judged faithfulness. Reports are in
 
 askdocs' regression gate flags nothing for either version. The fine-tuning
 did not cost the model its ability to answer from documents.
+
+**v3 and v4 on askdocs.** Rerun on 2026-11-21 for the base, v3 and v4
+(seed 0 each), same retrieval and judge
+([`results/askdocs-forgetting-v4/`](results/askdocs-forgetting-v4/)).
+askdocs itself changed since the table above, and the base model's
+faithfulness moved from 0.17 to 0.79, so the two tables are not comparable.
+
+| askdocs eval, 2026-11-21 | base 1.5B | v3 | v4 |
+|---|---|---|---|
+| key-fact recall | 0.49 | 0.60 | 0.50 |
+| wrong refusals | 0.21 | 0.05 | 0.23 |
+| correct refusals | 1.00 | 1.00 | 1.00 |
+| faithfulness | 0.79 | 0.72 | 0.78 |
+
+The gate flags nothing for either. But v3 refused answerable questions a
+quarter as often as the base (0.05 against 0.21), and v4 gives that back
+(0.23): the caution it learned for tool calls carries over to answering.
+One seed per version, so this is a signal, not a measurement.
 
 **As askdocs' answering model.** The same run compares the fine-tuned model
 with the 3B that askdocs uses by default
@@ -358,8 +420,8 @@ wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
 argument the request did not ask for, or content that is not what was
 dictated.
 
-**Limits.** Three training seeds for v2 and v3, one for v1; v3 was not
-checked on askdocs. Six fixed tools, one call per
+**Limits.** Three training seeds for v2, v3 and v4, one for v1; askdocs
+was checked on one seed of each version. Six fixed tools, one call per
 request, English only. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
 full list, and [`docs/architecture.md`](docs/architecture.md) the design
 decisions behind the measurement.

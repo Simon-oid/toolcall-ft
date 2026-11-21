@@ -4,6 +4,19 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- v4: 140 ambiguous training cases answered with a clarifying question,
+  three seeds, compared with v3 seed by seed. Abstention on test_ood
+  0.94 ± 0.04 → 0.99 ± 0.01 (19 fixed, 2 broken); on the independent
+  `test_hand5` 0.80 → 0.89 (5 fixed, 0 broken). Right call on test_ood
+  0.96 → 0.95 (6 fixed, 13 broken, no seed significant). On askdocs, wrong
+  refusals return to the base's level (v3 0.05, v4 0.23, one seed).
+- `data/test_hand4.jsonl`: 40 hand-written cases, committed before v4 was
+  trained, written together with the v4 data.
+- `data/test_hand5.txt`: 39 cases written from a brief by someone who had
+  not seen the generator, the training data or the other sets; committed
+  before evaluation. `toolcall.handset` converts it to JSONL, and a test
+  keeps the two identical.
+- askdocs forgetting check rerun for the base, v3 and v4.
 - v3: 140 training cases for bare-folder `fs_list` and for a search
   constraint after a closed sentence, three seeds, compared with v2 seed by
   seed. Right call on test_ood 0.92 ± 0.05 → 0.96 ± 0.01; on the blind
