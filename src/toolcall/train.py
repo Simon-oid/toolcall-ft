@@ -68,6 +68,9 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=20261110)
     ap.add_argument("--multistep", action="store_true",
                     help="also train on the episodes (mt_train, mt_val; episodes.py)")
+    ap.add_argument("--grounded", action="store_true",
+                    help="with --multistep: the episodes with grounded final replies "
+                         "(mt_train_g, mt_val_g; grounded.py)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -77,8 +80,9 @@ def main() -> int:
     train = examples("train", args.model, tools, distilled)
     val = examples("val", args.model, tools, distilled)
     if args.multistep:
-        train += examples("mt_train", args.model, tools, distilled)
-        val += examples("mt_val", args.model, tools, distilled)
+        g = "_g" if args.grounded else ""
+        train += examples("mt_train" + g, args.model, tools, distilled)
+        val += examples("mt_val" + g, args.model, tools, distilled)
     longest = check_lengths(train + val, args.model, args.max_length)
     print(f"{len(train)} train, {len(val)} val examples; longest {longest} tokens")
     if args.dry_run:

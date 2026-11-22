@@ -48,4 +48,5 @@ jobs:
         run: |
           python -m toolcall.data
           python -m toolcall.episodes
+          python -m toolcall.grounded
           git diff --exit-code data/
