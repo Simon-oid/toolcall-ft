@@ -1,0 +1,297 @@
+# test_hand7 — written by Simone knowing the v5 defect (it sometimes replies instead
+# of calling when a call is needed) and that test_hand6 found it. This set measures
+# multi-step and multi-turn tool use in general, not only that defect; the episodes
+# cover routine chains, context resolution, and correct abstention equally.
+# Written without opening any training data, evaluation code, model outputs, or
+# test_hand6 results. No episode here duplicates one from test_hand5 or test_hand6.
+# Format: src/toolcall/handset_mt.py. One message per line, blank line between episodes:
+#   E | label   U | user   c | history call   s | history reply
+#   C | scored call   r | tool result (\n = newline)   A | facts the final reply must contain
+# A is checked by substring (case-insensitive). "48 kB" does not match 48000;
+# use any: 48000; 48,000 when multiple surface forms are acceptable.
+
+# ======== MULTI-STEP EPISODES (1–15) ========
+
+# 1 — search the knowledge base, then read the full source
+E | search_then_read_full
+U | find documentation about connection pooling and show me the source file
+C | crag_search query~=[connection, pool]
+r | [cos 0.840  bm25 7.60  fusion 0.042] infra/db-pool.md\nThe connection pool is capped at 20 connections with a 30-second idle timeout.
+C | fs_read path=infra/db-pool.md
+r | # Database Connection Pool\n\nMax connections: 20\nIdle timeout: 30s\nMin idle: 2\nValidation query: SELECT 1\n\nOverflow connections are queued for up to 5 seconds before returning an error.
+A | 20; 30; SELECT 1
+
+# 2 — stat a directory, then list its contents
+E | stat_then_list
+U | check if the archive/ directory exists and what's in it
+C | fs_stat path=archive/
+r | path:     archive\ntype:     dir\nsize:     0\nmodified: 2026-10-30T16:00:00Z\nmode:     0755
+C | fs_list path=archive/
+r | file  18200  dump-2026-09.sql.gz\nfile  22400  dump-2026-10.sql.gz\ndir  0  logs
+A | dump-2026-09; dump-2026-10
+
+# 3 — list a folder, the target is not there, search for it
+E | list_miss_then_search
+U | I need the onboarding checklist, it should be in hr/
+C | fs_list path=hr/
+r | file  520  leave-policy.md\nfile  310  expense-form.md\ndir  0  templates
+C | crag_search query~=[onboarding, checklist]
+r | [cos 0.770  bm25 6.10  fusion 0.035] wiki/new-hire.md\nOnboarding checklist: 1) badge request  2) laptop setup  3) repo access  4) buddy assignment.
+A | badge request; laptop setup; repo access
+
+# 4 — read a config, then write a patched version
+E | read_patch_write
+U | the retry delay in services/worker.toml is 500ms, change it to 2000ms
+C | fs_read path=services/worker.toml
+r | [worker]\nretry_delay_ms = 500\nmax_attempts = 5\nbatch_size = 32
+C | fs_write path=services/worker.toml content~=[retry_delay_ms, 2000, max_attempts, 5, batch_size, 32]
+r | wrote 68 bytes to services/worker.toml
+A | 2000; services/worker.toml
+
+# 5 — crag_stats, then targeted search
+E | stats_then_search
+U | how big is the knowledge base? then look up anything about TLS certificates
+C | crag_stats
+r | db:     data/knowledge.db\nchunks: 2860\nfiles:  74\ndim:    768
+C | crag_search query~=[TLS, certificate]
+r | [cos 0.810  bm25 7.20  fusion 0.040] ops/tls-rotation.md\nCertificates are rotated every 90 days using cert-manager. Wildcard certs cover *.app.internal.
+A | 2860; 90 days; cert-manager
+
+# 6 — write a file, then read it back to confirm
+E | write_and_readback
+U | create a file at tmp/health.json containing {"status":"ok","version":"1.4.2"} and then read it back so I can verify
+C | fs_write path=tmp/health.json content~=[status, ok, version, 1.4.2]
+r | wrote 40 bytes to tmp/health.json
+C | fs_read path=tmp/health.json
+r | {"status":"ok","version":"1.4.2"}
+A | 1.4.2
+
+# 7 — list, then drill into a subfolder, then read a file (3-step chain)
+E | three_level_drill
+U | find the error codes table somewhere inside api/
+C | fs_list path=api/
+r | dir  0  v1\ndir  0  v2\nfile  290  overview.md
+C | fs_list path=api/v2/
+r | file  1400  endpoints.md\nfile  980  error-codes.md\nfile  350  auth.md
+C | fs_read path=api/v2/error-codes.md
+r | # Error Codes\n\n| code | meaning |\n|------|--------|\n| 1001 | invalid token |\n| 1002 | rate limited |\n| 1003 | payload too large |\n| 1004 | resource not found |
+A | 1001; invalid token; 1002; rate limited
+
+# 8 — search twice with refined query
+E | double_search_refine
+U | find the CI pipeline timeout setting
+C | crag_search query~=[CI, pipeline, timeout]
+r | [cos 0.380  bm25 2.40  fusion 0.010] docs/faq.md\nQ: What CI do we use?\nA: GitHub Actions with self-hosted runners.
+C | crag_search query~=[timeout, github, actions]
+r | [cos 0.760  bm25 6.40  fusion 0.036] .github/workflows/ci.yml\nThe job timeout is set to 45 minutes. Artifact retention is 7 days.
+A | 45 minutes
+
+# 9 — read two files and report a difference
+E | compare_envs
+U | compare the Python version in envs/dev.yaml and envs/prod.yaml
+C | fs_read path=envs/dev.yaml
+r | python: "3.12"\nnode: "20"\ndebug: true
+C | fs_read path=envs/prod.yaml
+r | python: "3.11"\nnode: "20"\ndebug: false
+A | 3.12; 3.11
+
+# 10 — read a log file with offset, then write a summary
+E | read_log_write_summary
+U | read lines 1 to 10 of logs/deploy.log and save a one-line summary to logs/deploy-summary.txt
+C | fs_read path=logs/deploy.log offset=1 limit=10
+r | 2026-11-20 14:00:01 deploying tag v3.8.1\n2026-11-20 14:00:05 pulling image registry.internal/app:v3.8.1\n2026-11-20 14:00:30 image pulled, 420 MB\n2026-11-20 14:00:31 stopping old containers\n2026-11-20 14:00:35 starting new containers\n2026-11-20 14:00:40 healthcheck passed\n2026-11-20 14:00:41 routing traffic\n2026-11-20 14:00:42 deploy complete\n2026-11-20 14:00:42 total time: 41s\n2026-11-20 14:00:43 notifying #releases channel
+C | fs_write path=logs/deploy-summary.txt content~=[v3.8.1, deploy]
+r | wrote 55 bytes to logs/deploy-summary.txt
+A | v3.8.1; logs/deploy-summary.txt
+
+# 11 — search, hit is vague, read the file for detail
+E | search_then_deep_read
+U | what's our data retention policy?
+C | crag_search query~=[data, retention, policy]
+r | [cos 0.800  bm25 6.80  fusion 0.038] compliance/data-lifecycle.md\nUser data is retained for 2 years after account closure. Anonymised analytics are kept indefinitely.
+C | fs_read path=compliance/data-lifecycle.md
+r | # Data Lifecycle Policy\n\nPersonal data: deleted 2 years after account closure.\nAnonymised analytics: retained indefinitely.\nBackups: purged after 90 days.\nAudit logs: 5-year retention (regulatory).\n\nDPO contact: privacy@example.com
+A | 2 years; 90 days; 5-year
+
+# 12 — list root, then stat the largest item
+E | list_root_stat_largest
+U | show me the top-level directory, then get the size of the biggest file
+C | fs_list
+r | dir  0  src\ndir  0  tests\ndir  0  data\nfile  14300  README.md\nfile  620  pyproject.toml\nfile  89400  model.safetensors
+C | fs_stat path=model.safetensors
+r | path:     model.safetensors\ntype:     file\nsize:     89400\nmodified: 2026-11-18T22:10:00Z\nmode:     0644
+A | any: 89400; 89,400
+
+# 13 — read a Dockerfile, then write a fixed version
+E | fix_dockerfile_base
+U | the Dockerfile uses python:3.9-slim as the base, update it to python:3.12-slim
+C | fs_read path=Dockerfile
+r | FROM python:3.9-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install -r requirements.txt\nCOPY . .\nCMD ["python", "main.py"]
+C | fs_write path=Dockerfile content~=[python:3.12-slim, WORKDIR, requirements.txt, main.py]
+r | wrote 128 bytes to Dockerfile
+A | python:3.12-slim; Dockerfile
+
+# 14 — search yields nothing useful, second attempt also weak (no-call answer at end)
+E | search_dead_end
+U | find information about GPU sharding strategy in the docs
+C | crag_search query~=[GPU, shard]
+r | [cos 0.290  bm25 1.50  fusion 0.006] misc/glossary.md\nGPU: Graphics Processing Unit, used for parallel computation.
+C | crag_search query~=[model, parallel, shard, device]
+r | [cos 0.310  bm25 1.80  fusion 0.007] misc/glossary.md\nSharding: splitting data across multiple nodes.
+A | any: no detailed information; not found; no documentation; only a glossary
+
+# 15 — read a YAML, then write an adjacent file
+E | read_then_write_sibling
+U | read the pipeline config at ci/build.yaml, then create ci/test.yaml with a test stage that uses pytest
+C | fs_read path=ci/build.yaml
+r | stages:\n  - name: build\n    image: python:3.11\n    script:\n      - pip install -e .\n      - python -m build
+C | fs_write path=ci/test.yaml content~=[test, pytest]
+r | wrote 92 bytes to ci/test.yaml
+A | ci/test.yaml; pytest
+
+# ======== MULTI-TURN EPISODES (16–30) ========
+
+# 16 — user asks about a value from the previous turn (no-call)
+E | recall_value_from_read
+U | read the quota config at limits/quotas.yaml
+c | fs_read path="limits/quotas.yaml"
+r | max_requests_per_hour: 3600\nmax_upload_mb: 50\nburst_limit: 120
+s | The quota config has three settings: max requests per hour is 3600, max upload is 50 MB, and burst limit is 120.
+U | what's the burst limit?
+A | 120
+
+# 17 — user refers to "it" meaning the file from previous turn
+E | resolve_pronoun_it
+U | check the manifest at packages/core/package.json
+c | fs_read path="packages/core/package.json"
+r | {"name": "@co/core", "version": "2.7.0", "main": "dist/index.js", "license": "Apache-2.0"}
+s | The core package is @co/core version 2.7.0. The main entry is dist/index.js and it uses Apache-2.0.
+U | what version is it?
+A | 2.7.0
+
+# 18 — user says "open the first one" from a listing
+E | resolve_ordinal_first
+U | what's in the migrations/ directory?
+c | fs_list path="migrations/"
+r | file  430  001_create_users.sql\nfile  510  002_add_roles.sql\nfile  380  003_add_audit_log.sql
+s | Three migration files: 001_create_users.sql, 002_add_roles.sql, and 003_add_audit_log.sql.
+U | open the first one
+C | fs_read path=migrations/001_create_users.sql
+r | CREATE TABLE users (\n  id SERIAL PRIMARY KEY,\n  email VARCHAR(255) UNIQUE NOT NULL,\n  created_at TIMESTAMP DEFAULT now()\n);
+A | CREATE TABLE users; email; SERIAL
+
+# 19 — user asks to follow up on a search hit (read the found file)
+E | followup_read_search_hit
+U | search for database migration strategy
+c | crag_search query="database migration strategy"
+r | [cos 0.820  bm25 7.10  fusion 0.040] ops/migration-runbook.md\nAll migrations run inside a transaction. Rollback is automatic on failure.
+s | Found ops/migration-runbook.md. It says migrations run inside a transaction with automatic rollback on failure.
+U | show me the full runbook
+C | fs_read path=ops/migration-runbook.md
+r | # Migration Runbook\n\n1. Run migrations inside a transaction.\n2. Rollback is automatic on failure.\n3. Always take a snapshot before ALTER TABLE.\n4. Test on staging first.\n5. Max lock wait: 10 seconds — abort if exceeded.
+A | snapshot; staging; 10 seconds
+
+# 20 — previous turn wrote a file, user says "how big is it?" (needs a call)
+E | size_after_write
+U | save the meeting notes to notes/standup.md
+c | fs_write path="notes/standup.md" content="Standup 2026-11-22: reviewed sprint board, no blockers."
+r | wrote 56 bytes to notes/standup.md
+s | Done — saved to notes/standup.md, 56 bytes.
+U | how big is it?
+C | fs_stat path=notes/standup.md
+r | path:     notes/standup.md\ntype:     file\nsize:     56\nmodified: 2026-11-22T09:00:00Z\nmode:     0644
+A | 56
+
+# 21 — user thanks after completed work (no-call, empty A)
+E | thanks_done
+U | write "TODO: add logging" to src/app.py
+c | fs_write path="src/app.py" content="TODO: add logging"
+r | wrote 17 bytes to src/app.py
+s | Written to src/app.py.
+U | perfect, thanks
+A |
+
+# 22 — answer already in context, no call needed
+E | answer_in_history
+U | read config/cache.yaml
+c | fs_read path="config/cache.yaml"
+r | backend: redis\nttl_seconds: 3600\nmax_memory_mb: 512\neviction: allkeys-lru
+s | The cache config uses Redis with a 3600-second TTL, 512 MB max memory, and allkeys-lru eviction.
+U | which eviction policy does it use?
+A | allkeys-lru
+
+# 23 — previous search returned an error from the tool (no-call, acknowledge it)
+E | error_in_history
+U | look up the disaster recovery plan
+c | crag_search query="disaster recovery plan"
+r | error: index is currently being rebuilt, try again later
+s | The search failed — the index is being rebuilt right now.
+U | can you try a different query maybe?
+A | any: index is being rebuilt; not available; try again later; cannot search
+
+# 24 — user asks a general knowledge question unrelated to tools (no-call)
+E | general_knowledge
+U | read the project readme
+c | fs_read path="README.md"
+r | # ToolCall\n\nA fine-tuning framework for tool-calling language models.\n\nRequires Python 3.11+ and PyTorch 2.1+.
+s | The project is ToolCall, a fine-tuning framework for tool-calling LMs. It needs Python 3.11+ and PyTorch 2.1+.
+U | what does fine-tuning mean in general?
+A |
+
+# 25 — user says "the same directory" and asks to write there
+E | same_dir_write
+U | list the templates/ folder
+c | fs_list path="templates/"
+r | file  640  invoice.html\nfile  520  receipt.html\nfile  380  welcome-email.html
+s | Three templates: invoice.html, receipt.html, and welcome-email.html.
+U | add a new template called reminder.html in the same directory with a basic reminder text
+C | fs_write path=templates/reminder.html content~=[reminder]
+r | wrote 48 bytes to templates/reminder.html
+A | templates/reminder.html
+
+# 26 — previous turn listed, user asks "how many" (no-call)
+E | count_from_listing
+U | show me everything in the plugins/ folder
+c | fs_list path="plugins/"
+r | file  2300  auth.py\nfile  1800  cache.py\nfile  3100  metrics.py\nfile  950  healthcheck.py\nfile  1200  ratelimit.py
+s | Five plugins: auth.py, cache.py, metrics.py, healthcheck.py, and ratelimit.py.
+U | how many are there?
+A | 5
+
+# 27 — ambiguous pronoun, model should ask or clarify (no-call)
+E | ambiguous_delete_which
+U | list what's in exports/
+c | fs_list path="exports/"
+r | file  8900  report-q1.pdf\nfile  7200  report-q2.pdf\nfile  11300  report-q3.pdf
+s | Three reports: q1, q2, and q3 as PDFs.
+U | overwrite that one with an empty file
+A |
+
+# 28 — user asks to search something related to previous context
+E | search_related_topic
+U | read the auth module at src/auth.py
+c | fs_read path="src/auth.py"
+r | import jwt\n\ndef verify(token: str) -> dict:\n    return jwt.decode(token, KEY, algorithms=["HS256"])\n\nKEY = "change-me"
+s | The auth module uses PyJWT with HS256. The key is hardcoded as "change-me".
+U | search the knowledge base for best practices on JWT key management
+C | crag_search query~=[JWT, key, management]
+r | [cos 0.790  bm25 6.70  fusion 0.037] security/secrets.md\nJWT signing keys must be loaded from a vault or environment variable, never hardcoded. Rotate keys every 90 days.
+A | vault; environment variable; 90 days
+
+# 29 — user disputes a result, model should acknowledge without re-calling (no-call)
+E | user_corrects_model
+U | search for the deployment region
+c | crag_search query="deployment region"
+r | [cos 0.730  bm25 6.00  fusion 0.033] infra/regions.md\nPrimary region: us-east-1. DR region: eu-west-1.
+s | The primary deployment region is us-east-1 and the DR region is eu-west-1.
+U | no, we migrated to eu-central-1 last month, the docs are stale
+A | any: eu-central-1; docs may be outdated; stale; needs updating
+
+# 30 — previous turn got empty index, user asks to search anyway (no-call)
+E | empty_index_no_search
+U | are there any documents indexed?
+c | crag_stats
+r | db:     data/knowledge.db\nchunks: 0\nfiles:  0\ndim:    768
+s | The index is completely empty — zero documents.
+U | search for anything about logging configuration
+A | any: index is empty; no documents; nothing to search; cannot search

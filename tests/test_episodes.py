@@ -278,10 +278,10 @@ def test_handset_mt_rejects_malformed_episodes(text, error):
         convert(text, "t")
 
 
-def test_hand6_jsonl_is_generated_from_its_text_source():
+@pytest.mark.parametrize("name", ["test_hand6", "test_hand7"])
+def test_hand_episode_jsonl_is_generated_from_its_text_source(name):
     from toolcall.handset_mt import convert, to_jsonl
-    src = DATA / "test_hand6.txt"
-    if not (DATA / "test_hand6.jsonl").exists():
-        pytest.skip("test_hand6 not written yet")
-    assert (DATA / "test_hand6.jsonl").read_text() == to_jsonl(convert(src.read_text(),
-                                                                       "test_hand6"))
+    src = DATA / f"{name}.txt"
+    if not (DATA / f"{name}.jsonl").exists():
+        pytest.skip(f"{name} not written yet")
+    assert (DATA / f"{name}.jsonl").read_text() == to_jsonl(convert(src.read_text(), name))
