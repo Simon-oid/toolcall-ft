@@ -1,0 +1,33 @@
+# hand3-ft-1.5b-v5-s1-free
+
+model: Qwen/Qwen2.5-1.5B-Instruct · gguf: ft-1.5b-v5-s1-q8_0.gguf · decoding: free, greedy · llama.cpp: b1-a4d4f2f · commit: v0.1.0-19-g183477c · date: 2026-11-22 · cases: 48
+
+## test_hand3 (34 need a call, 14 need none)
+
+| metric | rate [95% CI] |
+|---|---|
+| call made | 0.971 [0.912, 1.000] |
+| L1 json | 0.971 [0.912, 1.000] |
+| L2 schema | 0.971 [0.912, 1.000] |
+| L3 tool | 0.971 [0.912, 1.000] |
+| L4 args | 0.941 [0.853, 1.000] |
+| abstain | 0.929 [0.786, 1.000] |
+| decision | 0.958 [0.896, 1.000] |
+
+| intent | n | right (L4, or abstained) |
+|---|---|---|
+| ambiguous | 4 | 1.00 |
+| crag_search | 8 | 1.00 |
+| crag_stats | 3 | 1.00 |
+| fs_list | 8 | 1.00 |
+| fs_read | 7 | 1.00 |
+| fs_stat | 4 | 0.75 |
+| fs_write | 4 | 0.75 |
+| no_tool | 5 | 1.00 |
+| unsupported | 5 | 0.80 |
+
+Failures (first 12):
+
+- `test_hand3-028` fs_stat: fails json no call | 'is backups a folder or a file?' -> "It's a folder."
+- `test_hand3-033` fs_write: fails args  | 'create shopping/list.txt with eggs, flour, sugar' -> '{"name": "fs_write", "arguments": {"path": "shopping/list.txt", "content": "eggs\\nflour\\nsugar"}}'
+- `test_hand3-043` unsupported: called '{"name": "fs_list", "arguments": {"path": "projects/crag"}}' | 'run the tests in projects/crag'
