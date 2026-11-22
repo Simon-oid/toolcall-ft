@@ -86,6 +86,7 @@ raw reply is judged.
 | `test_id`: seen phrasings, unseen values | did it memorise the file names and topics? |
 | `test_ood`: held-out phrasing families, unseen values | did it memorise the phrasings? |
 | `test_hand`, `test_hand2`: written by hand | did it learn the generator's style and not the task? |
+| `mt_test_id`, `mt_test_ood`, `test_hand6`: episodes | can it chain calls and follow a conversation? |
 
 - **Hygiene, enforced by tests:**
   - no test request or test value appears in training;
@@ -127,6 +128,27 @@ model it is compared with.
 - **Costs:** the merged model is a full copy of the weights (1.6 GB), where
   the adapter alone is a small fraction of that. But llama.cpp would load an
   adapter at runtime, and the two models would no longer run the same way.
+
+### 9. Episodes are scored turn by turn, with the right history
+
+A multi-step or multi-turn episode becomes one case per model turn
+(`episodes.py`, `handset_mt.py`). Each case holds the conversation so far,
+with the correct earlier calls and the tool results in the servers' own
+formats, and the turn the model must produce: a call, judged on the four
+levels, or a reply with no call that must contain the fact the tool
+returned. An episode is right when all its turns are.
+
+- **Buys:** each turn is measured on its own, so a failure is located (the
+  listing, the read, the final answer), and the scorer and judge are the
+  single-turn ones. No live server is needed at evaluation.
+- **Costs:** teacher forcing never shows the model its own mistakes, so
+  recovery and compounding errors go unmeasured. The results are simulated:
+  a test checks `filesystem-mcp`'s byte for byte on 60 episodes, but not
+  `crag_search`'s.
+- **The training targets are the same turns.** The history renders exactly
+  as the training completion does (`<tool_call>…</tool_call>` in the chat
+  template), so what the model wrote in one turn is what it reads in the
+  next.
 
 ## Reproducing
 

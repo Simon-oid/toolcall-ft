@@ -4,6 +4,22 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- v5: multi-step and multi-turn episodes (`toolcall.episodes`, ten kinds,
+  results rendered in the servers' formats by `toolcall.corpus`), scored
+  turn by turn with the right history; an episode is right when every turn
+  is. Trained on v4's data plus 1,409 episode turns, three seeds. Episodes
+  right on the generated held-out split 0.35 ± 0.03 → 0.90 ± 0.03; on the
+  hand-written `test_hand6` 0.25 ± 0.03 → 0.40 ± 0.07 (7B 0.44). Right call
+  inside an episode 0.36 → 0.68 (47 fixed, 6 broken); final replies carrying
+  the tool's fact 0.57 → 0.52 (12 fixed, 16 broken): v5 copies the
+  generator's terse replies. Single-turn sets and askdocs unchanged within
+  noise.
+- `data/test_hand6.txt`: 32 hand-written episodes (74 scored turns), written
+  from a brief without seeing the generator, committed before any v5 result
+  was opened. `toolcall.handset_mt` converts the text format.
+- `evaluate`: step and episode rates for episode splits; `compare.py`: a
+  paired `step` metric for them.
+
 - v4: 140 ambiguous training cases answered with a clarifying question,
   three seeds, compared with v3 seed by seed. Abstention on test_ood
   0.94 ± 0.04 → 0.99 ± 0.01 (19 fixed, 2 broken); on the independent

@@ -12,8 +12,13 @@ there is one. Models ran as GGUF on llama.cpp on one machine (RX 7800 XT).
 - **Six tools, two servers, fixed.** The model was trained on these schemas
   and tested on these schemas. Nothing shows it calls *other* tools better
   than the base model does.
-- **One call per request.** No multi-step tasks, no call that depends on a
-  previous tool result, no conversation history.
+- **Multi-step only since v5, and only teacher-forced.** v1–v4 make one call
+  per request. v5's episodes are scored one turn at a time with the right
+  history before each turn. A model that goes wrong and then recovers is
+  never tested, and neither is a model whose error compounds. Results come
+  from a simulated file tree and corpus in the servers' formats, checked
+  byte for byte against `filesystem-mcp` on 60 episodes; `crag_search`
+  results are not checked against the real server.
 - **English only**, apart from two greetings in the hand-written sets.
 - **The 7B baseline is Q4_K_M, the 1.5B models are Q8_0.** Each model runs at
   the quantization it would be served at on this GPU. The 7B at higher
@@ -89,13 +94,35 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
 - **It refuses more answerable askdocs questions than v3:** wrong refusals
   0.23 against v3's 0.05 and the base's 0.21, on one seed.
 
+## What v5 still gets wrong
+
+- **Its final answers drop the value.** On `test_hand6` the final reply
+  carries the fact the user asked for in 0.52 ± 0.08 of the turns, against
+  v4's 0.57 and 1.00 on the generated episodes. After a write it says
+  "It's in notes/overlap.txt now." and leaves out the number it saved; after
+  a read it pastes the file instead of answering. The generator's final
+  replies only name the file, and the model copied that.
+- **It calls after a result that already answers.** An index with 0 chunks,
+  then "search it": it searches. A file already reported missing: it calls
+  `fs_stat` on it. Every model tested, the 7B included, does the same.
+- **The episode answer check is a substring match.** A reply that gives the
+  right number in other words ("five" for "5", "48 kB" for "48000") fails,
+  and two `test_hand6` episodes (021, 064) need arithmetic on the tool
+  result, which a 1.5B is not expected to do reliably. Episode 024 needs
+  four numbers from two earlier results, and 042 six facts from a paginated
+  read: no model passes either.
+- **Strict about the route, not only the result.** A model that guesses the
+  right file name without listing the folder first fails the step, even when
+  the guess would have worked.
+
 ## Side effects of the training
 
 - **Answering from documents was checked, and held:** on askdocs' 45
   questions, no version regresses against the base 1.5B by askdocs' gate
   (v2: faithfulness −0.02 [−0.16, +0.11], key facts +0.06; v3 and v4
   rerun on 2026-11-21, one seed each). v4 loses v3's drop in wrong refusals,
-  as above.
+  as above. v5 (2026-11-22, one seed): key facts 0.55, wrong refusals 0.16,
+  faithfulness 0.89, against the base's 0.49, 0.21 and 0.79.
 - **It is a weak answering model, like its base:** faithfulness 0.12 against
   0.60 for the 3B that askdocs uses.
 - **Nothing else about general ability was measured.**

@@ -33,6 +33,21 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | same recipe, 3 seeds: mean ± sd | 0.92 ± 0.05 | 0.97 ± 0.01 · 0.91 ± 0.00 | 0.97 ± 0.04 |
 | **v3**, 3 seeds: mean ± sd | **0.96 ± 0.01** | 0.95 ± 0.03 · 0.92 ± 0.05 | 0.94 ± 0.04 |
 | **v4**, 3 seeds: mean ± sd | 0.95 ± 0.01 | 0.91 ± 0.03 · 0.96 ± 0.02 | **0.99 ± 0.01** |
+| **v5** (+ multi-step), 3 seeds | 0.94 ± 0.04 | 0.93 ± 0.04 · 0.96 ± 0.05 | **1.00 ± 0.01** |
+
+**Multi-step and multi-turn (v5).** Chaining calls, such as listing a folder
+and then reading the right file, or resolving "how big is it?" after a read:
+
+| episodes right, teacher-forced | generated, held-out phrasings | written by hand (32 episodes) |
+|---|---|---|
+| Qwen2.5-1.5B base | 0.27 | 0.22 |
+| Qwen2.5-7B base | 0.66 | 0.44 |
+| v4, 3 seeds | 0.35 ± 0.03 | 0.25 ± 0.03 |
+| **v5**, 3 seeds | **0.90 ± 0.03** | **0.40 ± 0.07** |
+
+v5's calls inside an episode are as good as the 7B's. Its final answers are
+not: it learned the generator's terse replies and often leaves out the value
+the user asked for ([below](#v5-multi-step-and-multi-turn)).
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -365,6 +380,70 @@ Per-seed paired tests are in
   directory?". v4 learned caution, and some of it spills onto requests that
   were clear.
 
+### v5: multi-step and multi-turn
+
+Up to v4, every case is one request and one call. v5 adds episodes
+([`src/toolcall/episodes.py`](src/toolcall/episodes.py)): a conversation in
+which the model must make several calls in a row, each depending on the
+previous result, or answer a follow-up that refers to an earlier turn.
+- **Ten kinds.** Find a file then read it, check it exists then read it,
+  search the docs then save the answer, list then write, check the index
+  then search; and follow-ups to a read: "read it", "how big is it?",
+  "save that", an unresolvable "that one" (to be asked about), and thanks.
+- **Results look like the servers'.** Each tool result is rendered in the
+  real server's format, from a small in-memory file tree and corpus
+  ([`src/toolcall/corpus.py`](src/toolcall/corpus.py)). A test runs 60
+  episodes against the real `filesystem-mcp` and requires byte-identical
+  output.
+- **Scored one turn at a time, with the right history** (teacher forcing).
+  A call turn is judged on the four levels. A final turn must make no call,
+  and its reply must contain the fact the tool returned (a size, a line,
+  the file written). An episode is right only if every turn is.
+- **Same hygiene as the single-turn data.** A separate seed and separate
+  files, so v1–v4's data stay byte-identical. Held-out phrasing families
+  and unseen file names and topics in the test splits.
+- **Training.** v4's data plus 1,409 episode turns: 3,376 cases, 2 epochs,
+  422 steps in 63 minutes per seed. Same three seeds as v2–v4.
+
+[`data/test_hand6.txt`](data/test_hand6.txt) (32 episodes, 74 scored turns)
+was written by hand from a brief by someone who had not seen the generator,
+and committed before any v5 result was opened. The text format is converted
+by [`toolcall.handset_mt`](src/toolcall/handset_mt.py).
+
+| 3 seeds, mean ± sd | v4 | v5 | fixed / broken, pooled |
+|---|---|---|---|
+| episodes right, generated held-out | 0.35 ± 0.03 | **0.90 ± 0.03** | |
+| episodes right, test_hand6 | 0.25 ± 0.03 | **0.40 ± 0.07** | |
+| right call inside an episode, test_hand6 | 0.36 ± 0.05 | **0.68 ± 0.01** | 47 / 6 |
+| no call when none is due, test_hand6 | 0.81 ± 0.03 | 0.92 ± 0.04 | 12 / 2 |
+| final reply carries the fact, generated held-out | 0.78 ± 0.02 | 1.00 ± 0.00 | 106 / 0 |
+| final reply carries the fact, test_hand6 | 0.57 ± 0.03 | 0.52 ± 0.08 | 12 / 16 |
+
+Per-seed paired tests are in
+[`results/compare-v4-v5/`](results/compare-v4-v5/).
+- **It learned to chain calls.** Inside test_hand6's episodes the right
+  call rises from 0.36 to 0.68 in every seed (McNemar p ≤ 0.005 per seed):
+  28–29 of 42, against the 7B's 26. It calls `fs_list` before guessing a file name
+  and `fs_stat` for "how big is it?".
+- **The generated test overstates the gain about twice.** 0.90 of the
+  generated episodes are right, 0.40 of the hand-written ones, the same
+  pattern test_hand4 and test_hand5 showed for v4.
+- **It learned the generator's final replies.** On the hand-written set its
+  answers are worse than v4's (16 broken, 12 fixed). After a write it says
+  "It's in notes/overlap.txt now." and drops the value it computed or saved
+  (64, 763, 6). After a read it pastes the file instead of answering the
+  question. The generator's replies only ever name the file, so the model
+  never saw a reply that reports the value. The 7B, untrained, gets these
+  right.
+- **What nobody gets right.** An index with 0 chunks, then "search it for
+  deployment": all five models search. A file already reported missing,
+  asked about again: all of them call `fs_stat`.
+- **Single-turn results hold.** On test_ood, right calls 0.95 → 0.94
+  (10 fixed, 16 broken, no seed significant; seed 1 loses 7 more than it
+  gains: "after line N" read as `offset N`, and "what does research
+  contain?" sent to `crag_search`). Abstention 0.99 → 1.00.
+  On the hand-written sets 1–5 no seed changes significantly.
+
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
 [askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
@@ -400,6 +479,13 @@ quarter as often as the base (0.05 against 0.21), and v4 gives that back
 (0.23): the caution it learned for tool calls carries over to answering.
 One seed per version, so this is a signal, not a measurement.
 
+**v5 on askdocs.** Rerun on 2026-11-22 against the same base run (seed 0,
+[`results/askdocs-forgetting-v5/`](results/askdocs-forgetting-v5/)): key-fact
+recall 0.55, wrong refusals 0.16, correct refusals 1.00, faithfulness 0.89
+(base 0.49, 0.21, 1.00, 0.79). The gate flags nothing. Training on episodes,
+whose final replies quote tool results, did not cost the model its answering
+from documents.
+
 **As askdocs' answering model.** The same run compares the fine-tuned model
 with the 3B that askdocs uses by default
 ([`compose.local-model.yaml`](https://github.com/Simon-oid/askdocs/blob/main/compose.local-model.yaml)
@@ -420,9 +506,10 @@ wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
 argument the request did not ask for, or content that is not what was
 dictated.
 
-**Limits.** Three training seeds for v2, v3 and v4, one for v1; askdocs
-was checked on one seed of each version. Six fixed tools, one call per
-request, English only. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
+**Limits.** Three training seeds for v2 to v5, one for v1; askdocs
+was checked on one seed of each version. Six fixed tools, English only.
+Episodes are scored with the right history before each turn, so a model
+that recovers from its own mistake is never tested. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
 full list, and [`docs/architecture.md`](docs/architecture.md) the design
 decisions behind the measurement.
 
