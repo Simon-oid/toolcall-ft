@@ -104,7 +104,8 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
   replies only name the file, and the model copied that.
 - **It calls after a result that already answers.** An index with 0 chunks,
   then "search it": it searches. A file already reported missing: it calls
-  `fs_stat` on it. Every model tested, the 7B included, does the same.
+  `fs_stat` on it. The 7B does both as well; only the untrained 1.5B
+  skips the second call.
 - **The episode answer check is a substring match.** A reply that gives the
   right number in other words ("five" for "5", "48 kB" for "48000") fails,
   and two `test_hand6` episodes (021, 064) need arithmetic on the tool

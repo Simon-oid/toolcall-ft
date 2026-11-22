@@ -435,9 +435,9 @@ Per-seed paired tests are in
   question. The generator's replies only ever name the file, so the model
   never saw a reply that reports the value. The 7B, untrained, gets these
   right.
-- **What nobody gets right.** An index with 0 chunks, then "search it for
-  deployment": all five models search. A file already reported missing,
-  asked about again: all of them call `fs_stat`.
+- **What no model handles.** An index with 0 chunks, then "search it for
+  deployment": all eight models search. A file already reported missing,
+  asked about again: all but the base 1.5B call `fs_stat`.
 - **Single-turn results hold.** On test_ood, right calls 0.95 → 0.94
   (10 fixed, 16 broken, no seed significant; seed 1 loses 7 more than it
   gains: "after line N" read as `offset N`, and "what does research
