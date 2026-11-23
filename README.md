@@ -34,20 +34,27 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | **v3**, 3 seeds: mean ± sd | **0.96 ± 0.01** | 0.95 ± 0.03 · 0.92 ± 0.05 | 0.94 ± 0.04 |
 | **v4**, 3 seeds: mean ± sd | 0.95 ± 0.01 | 0.91 ± 0.03 · 0.96 ± 0.02 | **0.99 ± 0.01** |
 | **v5** (+ multi-step), 3 seeds | 0.94 ± 0.04 | 0.93 ± 0.04 · 0.96 ± 0.05 | **1.00 ± 0.01** |
+| **v6** (+ grounded replies), 3 seeds | 0.94 ± 0.03 | 0.96 ± 0.01 · 0.99 ± 0.02 | 0.98 ± 0.01 |
+| DPO from v5, 3 seeds | 0.92 ± 0.05 | 0.85 ± 0.08 · 0.92 ± 0.07 | 1.00 ± 0.01 |
 
-**Multi-step and multi-turn (v5).** Chaining calls, such as listing a folder
+**Multi-step and multi-turn (v5, v6).** Chaining calls, such as listing a folder
 and then reading the right file, or resolving "how big is it?" after a read:
 
-| episodes right, teacher-forced | generated, held-out phrasings | written by hand (32 episodes) |
-|---|---|---|
-| Qwen2.5-1.5B base | 0.27 | 0.22 |
-| Qwen2.5-7B base | 0.66 | 0.44 |
-| v4, 3 seeds | 0.35 ± 0.03 | 0.25 ± 0.03 |
-| **v5**, 3 seeds | **0.90 ± 0.03** | **0.40 ± 0.07** |
+| episodes right, teacher-forced | generated, held-out phrasings | by hand, set 1 (32 episodes) | by hand, set 2 (30, blind) |
+|---|---|---|---|
+| Qwen2.5-1.5B base | 0.27 | 0.22 | 0.23 |
+| Qwen2.5-7B base | 0.66 | 0.44 | 0.47 |
+| v4, 3 seeds | 0.35 ± 0.03 | 0.25 ± 0.03 | |
+| **v5**, 3 seeds | **0.90 ± 0.03** | 0.40 ± 0.07 | 0.47 ± 0.03 |
+| v6, 3 seeds | 0.86 ± 0.02 | 0.45 ± 0.08 | 0.44 ± 0.04 |
+| DPO from v5, 3 seeds | 0.81 ± 0.01 | 0.46 ± 0.02 | 0.50 ± 0.07 |
 
 v5's calls inside an episode are as good as the 7B's. Its final answers are
 not: it learned the generator's terse replies and often leaves out the value
-the user asked for ([below](#v5-multi-step-and-multi-turn)).
+the user asked for ([below](#v5-multi-step-and-multi-turn)). v6 and DPO fix
+part of that (the value reaches the reply in 0.59 → 0.68 and 0.73 of set 2's
+final turns, the 7B 0.70), but whole episodes do not move, and DPO costs
+calls ([below](#v6-and-dpo-final-replies-that-report-the-value)).
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -444,6 +451,71 @@ Per-seed paired tests are in
   contain?" sent to `crag_search`). Abstention 0.99 → 1.00.
   On the hand-written sets 1–5 no seed changes significantly.
 
+### v6 and DPO: final replies that report the value
+
+v5's defect is in its data: the generator's final replies only name the file.
+Point 26 fixes the targets and compares two ways of teaching them.
+- **Grounded targets** ([`src/toolcall/grounded.py`](src/toolcall/grounded.py)).
+  Only the final turn of four episode kinds changes. After a save the reply
+  quotes what was written ("Saved to notes/a.md. It says: …"); after a
+  check-then-read it gives the size and the contents. Their answer rules now
+  ask for those values, and a test checks that every old reply fails them.
+  231 of the training episodes change.
+- **v6 (SFT).** v5's recipe on the grounded episodes, from the base model,
+  same three seeds.
+- **DPO from v5** ([`prefs.py`](src/toolcall/prefs.py),
+  [`dpo.py`](src/toolcall/dpo.py)). v5 answered every training episode
+  (on-policy: right on all 3,376 turns under the old rules). Each final reply
+  that fails the grounded rule becomes a pair, the grounded reply chosen and
+  v5's own rejected: 231 pairs per seed. TRL's DPOTrainer trains a new LoRA on
+  the merged v5 (beta 0.1, 2 epochs, 30 steps, 12 minutes); the reference is
+  v5 itself.
+
+test_hand6 stopped being an independent judge when the fix was designed by
+reading its failures. So [`data/test_hand7.txt`](data/test_hand7.txt)
+(30 episodes, 66 scored turns) was written by hand from a new brief, knowing
+the defect but not the generator, and committed before any v6 or DPO result
+was opened. It is the number to quote.
+
+| 3 seeds, mean ± sd | 7B | v5 | v6 | DPO | vs v5, fixed / broken pooled: v6 · DPO |
+|---|---|---|---|---|---|
+| final reply carries the value, test_hand7 | 0.70 | 0.59 ± 0.00 | 0.68 ± 0.11 | **0.73 ± 0.04** | 12 / 5 · 12 / 1 |
+| right call inside an episode, test_hand7 | 0.56 | **0.68 ± 0.04** | 0.64 ± 0.03 | 0.64 ± 0.12 | 3 / 8 · 3 / 8 |
+| episodes right, test_hand7 | 0.47 | 0.47 ± 0.03 | 0.44 ± 0.04 | **0.50 ± 0.07** | 5 / 7 · 7 / 4 |
+| final reply carries the value, test_hand6 | 0.73 | 0.52 ± 0.08 | 0.62 ± 0.11 | 0.71 ± 0.04 | 16 / 7 · 22 / 5 |
+| final reply carries the value, generated held-out | 0.74 | 0.51 ± 0.00 | **1.00 ± 0.00** | 0.85 ± 0.06 | 234 / 2 · 168 / 4 |
+| right call inside an episode, generated held-out | 0.79 | **0.91 ± 0.02** | 0.88 ± 0.02 | 0.84 ± 0.03 | 18 / 43 · 4 / 58 |
+| calls when it should, single-turn test_ood | | **0.98 ± 0.01** | **0.98 ± 0.01** | 0.93 ± 0.04 | |
+
+The generated rows use the grounded answer rules. Per-seed tests are in
+[`results/compare-v5-v6-dpo/`](results/compare-v5-v6-dpo/), from
+[`scripts/pooled.py`](scripts/pooled.py).
+- **Both fix the reply a little on the blind set.** The value reaches the
+  final reply in 0.68 (v6) and 0.73 (DPO) of test_hand7's final turns, up
+  from 0.59 and level with the 7B. No seed is significant on 27 turns (best
+  p = 0.06). Pooled over seeds, DPO fixes 12 and breaks 1.
+- **Neither moves whole episodes.** test_hand7's episodes stay at 0.44–0.50,
+  where v5 and the 7B are. The calls each breaks cancel the replies it fixes.
+- **The generated test overstates the gain again.** On generated held-out
+  episodes v6 reports the value in every final reply, DPO in 0.85; on
+  test_hand7, 0.68 and 0.73.
+- **DPO learned to talk where its pairs were.** Every pair was a final turn,
+  and nothing held the call turns before them in place. On generated
+  episodes it breaks 58 calls and fixes 4. In 49 of the 58 breaks over the
+  three seeds it replies instead of calling, early in the same
+  kinds of episode the pairs came from: "I can do that once I know more. What should I
+  write in scripts/results.toml?". It also calls less on single requests
+  (0.98 → 0.93 on test_ood, right calls on test_hand 0.93 → 0.85). v6,
+  trained on whole episodes, breaks fewer calls and keeps single-turn as v5.
+- **A new mistake in both.** After `fs_stat` reports a directory, four of
+  the six v6 and DPO runs say "archive exists and is empty." instead of
+  listing it. The grounded check-then-read replies taught them to answer
+  right after a stat.
+- **Which to keep.** v6 is the safer default: same single-turn and askdocs
+  results as v5 or better (below), and the best generated episodes. DPO
+  gives the best replies on the blind set at the cost of calls; the next
+  attempt adds call turns to its pairs, or an SFT term on the chosen side.
+
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
 [askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
@@ -486,6 +558,21 @@ recall 0.55, wrong refusals 0.16, correct refusals 1.00, faithfulness 0.89
 whose final replies quote tool results, did not cost the model its answering
 from documents.
 
+**v6 and DPO on askdocs.** Same base run, seed 0 each, 2026-11-23
+([`results/askdocs-forgetting-v6/`](results/askdocs-forgetting-v6/)):
+
+| askdocs eval | base 1.5B | v5 | v6 | DPO from v5 |
+|---|---|---|---|---|
+| key-fact recall | 0.49 | 0.55 | **0.66** | 0.56 |
+| wrong refusals | 0.21 | 0.16 | **0.02** | 0.19 |
+| faithfulness | 0.79 | **0.89** | 0.85 | 0.72 |
+
+The gate flags nothing for either. v6, which learned to put the value it
+read into its reply, almost never refuses an answerable question (1 of 43)
+and recalls more key facts than the base (+0.17 [+0.05, +0.31]). DPO's
+faithfulness is the lowest of the four, within the gate's noise. One seed
+each.
+
 **As askdocs' answering model.** The same run compares the fine-tuned model
 with the 3B that askdocs uses by default
 ([`compose.local-model.yaml`](https://github.com/Simon-oid/askdocs/blob/main/compose.local-model.yaml)
@@ -506,10 +593,12 @@ wrong. The 7B answered "dump the file" with `offset 1, limit 1000`, and wrote
 argument the request did not ask for, or content that is not what was
 dictated.
 
-**Limits.** Three training seeds for v2 to v5, one for v1; askdocs
+**Limits.** Three training seeds for v2 to v6 and for DPO, one for v1; askdocs
 was checked on one seed of each version. Six fixed tools, English only.
 Episodes are scored with the right history before each turn, so a model
-that recovers from its own mistake is never tested. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
+that recovers from its own mistake is never tested. test_hand7 has 27
+final turns with a value to report, too few for any one seed's change to
+be significant. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the
 full list, and [`docs/architecture.md`](docs/architecture.md) the design
 decisions behind the measurement.
 

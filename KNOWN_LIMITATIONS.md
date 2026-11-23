@@ -116,6 +116,23 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
   right file name without listing the folder first fails the step, even when
   the guess would have worked.
 
+## What v6 and DPO still get wrong
+
+- **The reply fix is small on hand-written episodes.** On `test_hand7` the
+  value reaches the final reply in 0.68 ± 0.11 (v6) and 0.73 ± 0.04 (DPO)
+  of the turns, against 1.00 and 0.85 on the generated ones. No single
+  seed's gain over v5 is significant on 27 turns.
+- **Whole episodes do not improve.** 0.44 ± 0.04 (v6), 0.50 ± 0.07 (DPO),
+  v5 0.47: each breaks about as many call turns as it fixes replies.
+- **DPO replies where it should call.** Trained on final turns only, it
+  answers instead of calling early in the same kinds of episode
+  ("I can do that once I know more…"): 49 of its 58 broken calls on the
+  generated episodes. On single requests it calls when it should in 0.93,
+  against v5's 0.98.
+- **Both answer right after a stat.** Told that `archive` is a directory,
+  four of six runs say "archive exists and is empty." instead of listing
+  it, an effect of the grounded check-then-read replies.
+
 ## Side effects of the training
 
 - **Answering from documents was checked, and held:** on askdocs' 45
@@ -123,7 +140,8 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
   (v2: faithfulness −0.02 [−0.16, +0.11], key facts +0.06; v3 and v4
   rerun on 2026-11-21, one seed each). v4 loses v3's drop in wrong refusals,
   as above. v5 (2026-11-22, one seed): key facts 0.55, wrong refusals 0.16,
-  faithfulness 0.89, against the base's 0.49, 0.21 and 0.79.
+  faithfulness 0.89, against the base's 0.49, 0.21 and 0.79. v6
+  (2026-11-23, one seed): 0.66, 0.02, 0.85; DPO from v5: 0.56, 0.19, 0.72.
 - **It is a weak answering model, like its base:** faithfulness 0.12 against
   0.60 for the 3B that askdocs uses.
 - **Nothing else about general ability was measured.**

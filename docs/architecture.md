@@ -86,7 +86,7 @@ raw reply is judged.
 | `test_id`: seen phrasings, unseen values | did it memorise the file names and topics? |
 | `test_ood`: held-out phrasing families, unseen values | did it memorise the phrasings? |
 | `test_hand`, `test_hand2`: written by hand | did it learn the generator's style and not the task? |
-| `mt_test_id`, `mt_test_ood`, `test_hand6`: episodes | can it chain calls and follow a conversation? |
+| `mt_test_id`, `mt_test_ood`, `test_hand6`, `test_hand7`: episodes | can it chain calls and follow a conversation? |
 
 - **Hygiene, enforced by tests:**
   - no test request or test value appears in training;
@@ -96,7 +96,8 @@ raw reply is judged.
 - **A test read for error analysis stops being a test.** `test_hand` was
   used to decide what v2 should fix. So `test_hand2` was written and
   committed before v2 was trained: the commit order is the evidence that it
-  is blind.
+  is blind. `test_hand6` was read to design v6's fix, so `test_hand7` was
+  written and committed before any v6 or DPO result was opened.
 
 ### 6. Training sees exactly what evaluation sees
 
@@ -149,6 +150,24 @@ returned. An episode is right when all its turns are.
   as the training completion does (`<tool_call>…</tool_call>` in the chat
   template), so what the model wrote in one turn is what it reads in the
   next.
+
+### 10. SFT and DPO get the same new targets, and are compared on a blind set
+
+v6's grounded replies (`grounded.py`) are both its SFT targets and DPO's
+"chosen" side; DPO's "rejected" side is what v5 itself replied on the same
+training episodes (`prefs.py`). So the two methods differ only in how they
+use the targets, not in what the targets say.
+
+- **Buys:** a clean answer to "do preferences fix this better than
+  retraining?", and the grounded answer rules score both the same way.
+- **Costs:** DPO only sees final turns, so nothing in its loss holds the
+  call turns of the same episodes in place. It moved them: it replies
+  instead of calling early in the kinds of episode its pairs came from.
+  Pairs on call turns, or an SFT term on the chosen side, would address
+  that.
+- **The reference is v5 itself.** The DPO LoRA is trained on the merged v5
+  and the reference is the same weights with the adapter off, so the KL term
+  keeps DPO near v5, not near the base model.
 
 ## Reproducing
 

@@ -4,6 +4,23 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- v6 and DPO (point 26): grounded final replies (`toolcall.grounded`: after
+  a save the reply quotes what was written, after a check-then-read it gives
+  the size and the contents; 231 training episodes change), learned two
+  ways, three seeds each. v6 retrains v5's recipe on them; DPO trains a LoRA
+  on v5 with 231 on-policy pairs per seed (`toolcall.prefs`,
+  `toolcall.dpo`, beta 0.1, reference v5). On the blind `test_hand7` the
+  value reaches the final reply in 0.59 (v5) → 0.68 (v6) and 0.73 (DPO),
+  the 7B 0.70; episodes right stay at 0.44–0.50. DPO breaks calls: on
+  generated episodes 58 broken, 4 fixed, mostly replying instead of calling;
+  single-turn calls when it should 0.98 → 0.93. v6 keeps single-turn as v5,
+  and on askdocs wrong refusals drop to 0.02 (one seed).
+- `data/test_hand7.txt`: 30 hand-written episodes (66 scored turns), written
+  from a new brief knowing v5's defect, committed before any v6 or DPO
+  result was opened.
+- `scripts/pooled.py`: paired comparison of two model families with the
+  seeds' fixed and broken counts summed and McNemar per seed.
+
 - v5: multi-step and multi-turn episodes (`toolcall.episodes`, ten kinds,
   results rendered in the servers' formats by `toolcall.corpus`), scored
   turn by turn with the right history; an episode is right when every turn
