@@ -67,3 +67,29 @@ def test_pairs_skip_replies_that_are_already_grounded():
             g[1]["id"].replace("_g", "", 1): {"reply": "x", "call": '{"name": "fs_stat"}'}}
     ps = pairs(g, said)
     assert [p["id"] for p in ps] == [g[1]["id"]]        # a call is always wrong here
+
+
+def test_call_pairs_take_wrong_calls_only_with_the_training_target():
+    from toolcall.prefs import call_pairs
+    from toolcall.train import completion
+    calls = [r for r in rows("mt_train") if r["expected"] is not None][:3]
+    single = [r for r in rows("train") if r["expected"] is not None][:1]
+    wrong = {"reply": "I can do that once I know more.", "call": None,
+             "score": {"levels": {"args": False}}}
+    right = {"reply": completion(calls[1], {}), "call": "x", "score": {"levels": {"args": True}}}
+    junk = {"reply": "!" * 40, "call": None, "score": {"levels": {"args": False}}}
+    said = {calls[0]["id"]: wrong, calls[1]["id"]: right, calls[2]["id"]: junk,
+            single[0]["id"]: wrong}
+    ps = call_pairs(calls + single, said)
+    assert [p["id"] for p in ps] == [calls[0]["id"], single[0]["id"]]
+    assert ps[0]["chosen"] == completion(calls[0], {}) and ps[0]["chosen"].startswith("<tool_call>")
+    assert ps[0]["rejected"] == wrong["reply"]
+    assert "context" in ps[0] and ps[1]["request"] == single[0]["request"]
+
+
+def test_call_pairs_skip_final_turns():
+    from toolcall.prefs import call_pairs
+    final = [r for r in rows("mt_train") if r["expected"] is None][:2]
+    said = {r["id"]: {"reply": "x", "call": None, "score": {"levels": {"args": False}}}
+            for r in final}
+    assert call_pairs(final, said) == []

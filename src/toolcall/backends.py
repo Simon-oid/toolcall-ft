@@ -29,10 +29,13 @@ class LlamaCpp:
     concurrency: int = 1
     timeout_s: float = 120.0
     transport: httpx.AsyncBaseTransport | None = None     # tests inject one
+    temperature: float = 0.0             # > 0 only to sample (sample.py), never to evaluate
+    seed: int = 0
 
     async def _one(self, client: httpx.AsyncClient, prompt: str, sem: asyncio.Semaphore) -> str:
-        body = {"prompt": prompt, "n_predict": self.max_tokens, "temperature": 0.0,
-                "top_k": 1, "seed": 0, "stop": STOP, "cache_prompt": True}
+        body = {"prompt": prompt, "n_predict": self.max_tokens, "temperature": self.temperature,
+                "top_k": 1 if self.temperature == 0 else 40, "seed": self.seed, "stop": STOP,
+                "cache_prompt": True}
         if self.json_schema is not None:
             body["json_schema"] = self.json_schema
         async with sem:
