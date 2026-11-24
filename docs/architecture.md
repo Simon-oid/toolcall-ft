@@ -163,8 +163,12 @@ use the targets, not in what the targets say.
 - **Costs:** DPO only sees final turns, so nothing in its loss holds the
   call turns of the same episodes in place. It moved them: it replies
   instead of calling early in the kinds of episode its pairs came from.
-  Pairs on call turns, or an SFT term on the chosen side, would address
-  that.
+  Round 2 added pairs on the call turns (the right call over a sampled
+  mistake of round 1) and overshot the other way: with only "call beats
+  what you said" pairs and none for "a reply beats a call", it calls on
+  requests that need no tool (test_ood abstention 0.06 and 0.02 on two
+  seeds). Preference pairs move whatever they touch and leave the rest
+  free; each behaviour to keep needs pairs of its own, or an SFT term.
 - **The reference is v5 itself.** The DPO LoRA is trained on the merged v5
   and the reference is the same weights with the adapter off, so the KL term
   keeps DPO near v5, not near the base model.

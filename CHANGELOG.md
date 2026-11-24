@@ -4,6 +4,16 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- DPO round 2 (point 26b): round 1's 231 final-reply pairs plus pairs on the
+  call turns of train and mt_train, the right call chosen and a mistake of
+  round-1 DPO rejected (`toolcall.sample`: 4 samples at T=1, since greedy it
+  is wrong on only 24 of 2254; `toolcall.prefs --calls-from`): 181, 189 and
+  24 call pairs by seed, trained from v5. Calls inside generated episodes
+  return to v5's level (0.84 → 0.90, v5 0.91), but it learns to call where
+  no tool is needed: abstention on test_ood 1.00 → 0.06 / 0.02 / 0.82 by
+  seed (0 fixed, 220 broken pooled), episodes right on test_hand7 0.47 →
+  0.30. The set had no pairs preferring a reply to a call. v6 stays the
+  default. `LlamaCpp` gains `temperature` and `seed`.
 - v6 and DPO (point 26): grounded final replies (`toolcall.grounded`: after
   a save the reply quotes what was written, after a check-then-read it gives
   the size and the contents; 231 training episodes change), learned two

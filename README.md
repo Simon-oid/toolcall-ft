@@ -36,6 +36,7 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | **v5** (+ multi-step), 3 seeds | 0.94 ± 0.04 | 0.93 ± 0.04 · 0.96 ± 0.05 | **1.00 ± 0.01** |
 | **v6** (+ grounded replies), 3 seeds | 0.94 ± 0.03 | 0.96 ± 0.01 · 0.99 ± 0.02 | 0.98 ± 0.01 |
 | DPO from v5, 3 seeds | 0.92 ± 0.05 | 0.85 ± 0.08 · 0.92 ± 0.07 | 1.00 ± 0.01 |
+| DPO round 2 (+ call pairs), 3 seeds | 0.89 ± 0.09 | 0.84 ± 0.08 · 0.90 ± 0.13 | 0.30 ± 0.45 |
 
 **Multi-step and multi-turn (v5, v6).** Chaining calls, such as listing a folder
 and then reading the right file, or resolving "how big is it?" after a read:
@@ -48,13 +49,16 @@ and then reading the right file, or resolving "how big is it?" after a read:
 | **v5**, 3 seeds | **0.90 ± 0.03** | 0.40 ± 0.07 | 0.47 ± 0.03 |
 | v6, 3 seeds | 0.86 ± 0.02 | 0.45 ± 0.08 | 0.44 ± 0.04 |
 | DPO from v5, 3 seeds | 0.81 ± 0.01 | 0.46 ± 0.02 | 0.50 ± 0.07 |
+| DPO round 2, 3 seeds | 0.73 ± 0.10 | 0.28 ± 0.12 | 0.30 ± 0.09 |
 
 v5's calls inside an episode are as good as the 7B's. Its final answers are
 not: it learned the generator's terse replies and often leaves out the value
 the user asked for ([below](#v5-multi-step-and-multi-turn)). v6 and DPO fix
 part of that (the value reaches the reply in 0.59 → 0.68 and 0.73 of set 2's
 final turns, the 7B 0.70), but whole episodes do not move, and DPO costs
-calls ([below](#v6-and-dpo-final-replies-that-report-the-value)).
+calls ([below](#v6-and-dpo-final-replies-that-report-the-value)). A second
+DPO round with pairs on the call turns overshot: it calls on requests that
+need no tool.
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -513,8 +517,36 @@ The generated rows use the grounded answer rules. Per-seed tests are in
   right after a stat.
 - **Which to keep.** v6 is the safer default: same single-turn and askdocs
   results as v5 or better (below), and the best generated episodes. DPO
-  gives the best replies on the blind set at the cost of calls; the next
-  attempt adds call turns to its pairs, or an SFT term on the chosen side.
+  gives the best replies on the blind set at the cost of calls.
+
+**DPO round 2: pairs on the call turns too.** Round 1's pairs were all final
+turns, so round 2 adds pairs on the call turns of the same training data:
+the right call chosen, a mistake of round-1 DPO rejected. Greedy, round-1
+DPO gets only 24 of the 2254 training call turns wrong, so the mistakes were
+sampled ([`sample.py`](src/toolcall/sample.py): 4 samples at T=1, the first
+wrong one kept): 181, 189 and 24 call pairs by seed, on top of the 231
+final-reply pairs. Seed 2's model was wrong that rarely even when sampled.
+Training starts from v5 again, as in round 1.
+
+| 3 seeds, mean ± sd | v5 | DPO r1 | DPO r2 | v5 → r2, fixed / broken pooled |
+|---|---|---|---|---|
+| right call inside an episode, generated held-out | **0.91 ± 0.02** | 0.84 ± 0.03 | 0.90 ± 0.02 | 22 / 28 |
+| abstains when it should, single-turn test_ood | **1.00 ± 0.01** | **1.00 ± 0.01** | 0.30 ± 0.45 | 0 / 220 |
+| abstains when it should, test_hand7 | 0.93 ± 0.00 | **0.94 ± 0.04** | 0.67 ± 0.15 | 0 / 24 |
+| final reply carries the value, test_hand7 | 0.59 ± 0.00 | **0.73 ± 0.04** | 0.52 ± 0.07 | 9 / 15 |
+| episodes right, test_hand7 | 0.47 ± 0.03 | **0.50 ± 0.07** | 0.30 ± 0.09 | 3 / 18 |
+
+The calls came back to v5's level, and the model learned to call
+everywhere. On test_ood seed 0 calls `crag_search` on 99 of 105 requests
+that need no tool ("What does CPU stand for?"), and on test_hand7 most of
+the final turns it gets wrong are another call instead of the reply. The
+damage follows the number of call pairs: abstention on test_ood is 0.06,
+0.02 and 0.82 for seeds 0, 1 and 2. Every call pair says "a call beats what
+you said", and nothing in the set says "a reply beats a call" on a request
+that needs no tool. A third round would need those abstain pairs too. On
+askdocs (seed 0) it keeps the base's level: key facts 0.53, wrong refusals
+0.16, faithfulness 0.88. Per-seed tests are in
+[`results/compare-dpo2/`](results/compare-dpo2/). v6 stays the default.
 
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
