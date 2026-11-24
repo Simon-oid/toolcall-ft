@@ -20,6 +20,13 @@ reply instead of calling), so `--calls-from` adds call pairs:
   rejected  what a model replied on that call turn when it got it wrong:
             the run of round-1 DPO on train,mt_train, whose mistakes are
             exactly the replies that should have been calls
+
+DPO on those (round 2) learned to call everywhere, since no pair preferred a
+reply to a call, so `--abstain-from` adds abstain pairs on the turns that need
+no call (sample.py --abstain):
+
+  chosen    the reply training uses there (the distilled reply for no_tool)
+  rejected  an unneeded call the model made there
 """
 
 from __future__ import annotations
@@ -30,7 +37,7 @@ import re
 
 from .data import ROOT
 from .score import answer_ok
-from .train import completion
+from .train import DISTILLED, completion
 
 GARBAGE = re.compile(r"^(.)\1{15}")     # llama.cpp on ROCm sometimes returns "!!!!..."
 
@@ -69,6 +76,25 @@ def call_pairs(rows: list[dict], onpolicy: dict[str, dict]) -> list[dict]:
     return out
 
 
+def abstain_pairs(rows: list[dict], onpolicy: dict[str, dict],
+                  distilled: dict[str, str]) -> list[dict]:
+    """One pair per no-call turn (not a final reply after a tool result) where
+    the model called: chosen = the training reply, rejected = that call."""
+    out = []
+    for r in rows:
+        if r["expected"] is not None or ("context" in r and r["context"][-1]["role"] != "user"):
+            continue
+        said = onpolicy.get(r["id"])
+        chosen = completion(r, distilled)
+        if said is None or chosen is None or said["call"] is None or GARBAGE.match(said["reply"]):
+            continue
+        pair = {"id": r["id"], "intent": r["intent"], "kind": "abstain",
+                "chosen": chosen, "rejected": said["reply"]}
+        pair |= {"context": r["context"]} if "context" in r else {"request": r["request"]}
+        out.append(pair)
+    return out
+
+
 def load_rows(path) -> list[dict]:
     return [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
 
@@ -79,17 +105,27 @@ def main() -> int:
     ap.add_argument("--split", default="mt_train_g")
     ap.add_argument("--out", default="data/prefs_v5.jsonl")
     ap.add_argument("--calls-from", help="a run on train,mt_train whose wrong calls add pairs")
+    ap.add_argument("--abstain-from", help="a sample.py --abstain run whose calls add pairs")
     args = ap.parse_args()
     grounded = load_rows(ROOT / "data" / f"{args.split}.jsonl")
     results = load_rows(ROOT / "results" / args.run / "results.jsonl")
     ps = pairs(grounded, {r["id"]: r for r in results})
     n_reply = len(ps)
+    splits = [load_rows(ROOT / "data" / f"{s}.jsonl") for s in ("train", "mt_train")]
     if args.calls_from:
         said = {r["id"]: r for r in load_rows(ROOT / "results" / args.calls_from / "results.jsonl")}
-        for split in ("train", "mt_train"):
-            ps += call_pairs(load_rows(ROOT / "data" / f"{split}.jsonl"), said)
+        for rows in splits:
+            ps += call_pairs(rows, said)
+    n_call = len(ps) - n_reply
+    if args.abstain_from:
+        run = ROOT / "results" / args.abstain_from / "results.jsonl"
+        said = {r["id"]: r for r in load_rows(run)}
+        distilled = {d["request"]: d["reply"] for d in load_rows(DISTILLED)}
+        for rows in splits:
+            ps += abstain_pairs(rows, said, distilled)
     (ROOT / args.out).write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in ps))
-    print(f"{len(ps)} pairs ({n_reply} final replies, {len(ps) - n_reply} calls) -> {args.out}")
+    print(f"{len(ps)} pairs ({n_reply} final replies, {n_call} calls, "
+          f"{len(ps) - n_reply - n_call} abstentions) -> {args.out}")
     return 0
 
 

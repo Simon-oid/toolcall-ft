@@ -93,3 +93,36 @@ def test_call_pairs_skip_final_turns():
     said = {r["id"]: {"reply": "x", "call": None, "score": {"levels": {"args": False}}}
             for r in final}
     assert call_pairs(final, said) == []
+
+
+def test_abstain_pairs_prefer_the_reply_to_an_unneeded_call():
+    from toolcall.prefs import abstain_pairs
+    from toolcall.train import completion
+    single = [r for r in rows("train") if r["expected"] is None and r["intent"] != "no_tool"][:2]
+    asked = [r for r in rows("mt_train")
+             if r["expected"] is None and r["context"][-1]["role"] == "user"][:1]
+    final = [r for r in rows("mt_train")
+             if r["expected"] is None and r["context"][-1]["role"] == "tool"][:1]
+    call = {"reply": '<tool_call>\n{"name": "crag_search"}\n</tool_call>', "call": {"name": "x"},
+            "score": {"levels": {"args": False}, "abstained_ok": False}}
+    ok = {"reply": "fine", "call": None, "score": {"levels": {"args": False}, "abstained_ok": True}}
+    junk = {"reply": "!" * 40, "call": None,
+            "score": {"levels": {"args": False}, "abstained_ok": False}}
+    said = {single[0]["id"]: call, single[1]["id"]: ok, asked[0]["id"]: call, final[0]["id"]: call}
+    ps = abstain_pairs(single + asked + final, said, {})
+    assert [p["id"] for p in ps] == [single[0]["id"], asked[0]["id"]]
+    assert ps[0]["kind"] == "abstain" and ps[0]["rejected"] == call["reply"]
+    assert ps[0]["chosen"] == completion(single[0], {}) and ps[0]["request"] == single[0]["request"]
+    assert "context" in ps[1]
+    said[single[0]["id"]] = junk
+    assert [p["id"] for p in abstain_pairs(single, said, {})] == []
+
+
+def test_abstain_pairs_skip_no_tool_rows_without_a_distilled_reply():
+    from toolcall.prefs import abstain_pairs
+    nt = [r for r in rows("train") if r["intent"] == "no_tool"][:1]
+    call = {"reply": "<tool_call>x</tool_call>", "call": {"name": "x"},
+            "score": {"levels": {"args": False}, "abstained_ok": False}}
+    assert abstain_pairs(nt, {nt[0]["id"]: call}, {}) == []
+    got = abstain_pairs(nt, {nt[0]["id"]: call}, {nt[0]["request"]: "A cat named Soot."})
+    assert got[0]["chosen"] == "A cat named Soot."
