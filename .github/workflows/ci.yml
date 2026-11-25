@@ -49,4 +49,5 @@ jobs:
           python -m toolcall.data
           python -m toolcall.episodes
           python -m toolcall.grounded
+          python -m toolcall.rare
           git diff --exit-code data/

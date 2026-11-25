@@ -22,7 +22,8 @@ from toolcall.evaluate import step_right
 
 ROOT = Path(__file__).resolve().parent.parent
 SEEDS = ("", "-s1", "-s2")
-SETS = ("hand7-:test_hand7", "hand6-:test_hand6", "mtg-:mt_test_ood_g", "mt-:mt_test_ood",
+SETS = ("hand8-:test_hand8", "mt7-:mt7_test_ood", "hand7-:test_hand7",
+        "hand6-:test_hand6", "mtg-:mt_test_ood_g", "mt-:mt_test_ood",
         ":test_ood", ":test_id")
 
 

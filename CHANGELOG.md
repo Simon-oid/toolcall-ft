@@ -4,6 +4,25 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+### v7 data: the episode shapes the generator never produced
+
+- `test_hand8` (43 hand-written episodes, 90 scored steps), committed before
+  the generator below: label prefixes split it into the eight families v6
+  fails on (`f1_`–`f8_`), shapes in none of them (`new_`) and routine
+  episodes (`base_`).
+- `rare.py`: twelve new episode kinds for those families (long chains, a
+  retry after a miss, a dead-end search, stopping when the history already
+  answers, read-edit-write, listing then stat, paging through a log, a user
+  who corrects the last call, checking a write), with grounded final replies,
+  their own seed, pools disjoint between train and test, and subfolders in
+  listings. `data/mt7_*`: 1756 / 187 / 334 / 558 steps. `train.py --rare`
+  adds them; the v5/v6 episodes are unchanged (`episodes.generate` is the
+  shared loop).
+- Hygiene: no hand-written user message of five words or more appears in
+  the new training data. One generator phrasing that matched a `test_hand8`
+  message word for word was reworded; the check reports counts only, so the
+  set stays unread.
+
 ### Documentation
 
 - README restructured around the default model (v6): results, findings,

@@ -406,10 +406,22 @@ def _key(context: list[dict]) -> str:
     return json.dumps(context, sort_keys=True)
 
 
+Kind = Callable[[Episode, Slots, int], None]
+
+
 def build(seed: int = SEED) -> list[dict]:
+    return generate(KINDS, SPLITS, seed, lambda rng, pool: (Tree(rng), Slots(rng, POOLS[pool])))
+
+
+def generate(kinds: dict[str, Kind], splits: tuple[str, ...], seed: int,
+             make: Callable[[random.Random, str], tuple[Tree, Slots]]) -> list[dict]:
+    """Every kind's episodes in `splits` (train, val, test_id, test_ood), from
+    one random stream. `make` gives an episode its file tree and slot values
+    from a pool ("train" or "test")."""
+    train_split, val_split, id_split, ood_split = splits
     rng = random.Random(seed)
     rows: list[dict] = []
-    seen: dict[str, set[str]] = {s: set() for s in SPLITS}
+    seen: dict[str, set[str]] = {s: set() for s in splits}
     episodes = 0
 
     def add(split: str, kind: str, fam: int, pool: str) -> None:
@@ -418,12 +430,13 @@ def build(seed: int = SEED) -> list[dict]:
         training tolerates one after 50 tries."""
         nonlocal episodes
         for attempt in range(200):
-            ep = Episode(Tree(rng))
-            KINDS[kind](ep, Slots(rng, POOLS[pool]), fam)
+            tree, slots = make(rng, pool)
+            ep = Episode(tree)
+            kinds[kind](ep, slots, fam)
             keys = [_key(st["context"]) for st in ep.steps]
             if not any(k in seen[split] for k in keys):
                 break
-            if split == "mt_train" and attempt >= 50:
+            if split == train_split and attempt >= 50:
                 break
         else:
             return
@@ -441,21 +454,21 @@ def build(seed: int = SEED) -> list[dict]:
                 row["call"] = st["call"]
             rows.append(row)
 
-    for kind in KINDS:
+    for kind in kinds:
         for i in range(EPISODES_TRAIN):
-            split = "mt_val" if rng.random() < VAL_FRACTION else "mt_train"
+            split = val_split if rng.random() < VAL_FRACTION else train_split
             add(split, kind, TRAIN_FAMILIES[i % len(TRAIN_FAMILIES)], "train")
         for i in range(EPISODES_TEST_ID):
-            add("mt_test_id", kind, TRAIN_FAMILIES[i % len(TRAIN_FAMILIES)], "test")
+            add(id_split, kind, TRAIN_FAMILIES[i % len(TRAIN_FAMILIES)], "test")
         for i in range(EPISODES_TEST_OOD):
-            add("mt_test_ood", kind, OOD_FAMILIES[i % len(OOD_FAMILIES)], "test")
+            add(ood_split, kind, OOD_FAMILIES[i % len(OOD_FAMILIES)], "test")
     return rows
 
 
-def write(rows: list[dict], out: Path) -> dict[str, int]:
+def write(rows: list[dict], out: Path, splits: tuple[str, ...] = SPLITS) -> dict[str, int]:
     out.mkdir(parents=True, exist_ok=True)
     counts: dict[str, int] = {}
-    for split in SPLITS:
+    for split in splits:
         part = [r for r in rows if r["split"] == split]
         counts[split] = len(part)
         (out / f"{split}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"

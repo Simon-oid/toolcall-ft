@@ -278,7 +278,7 @@ def test_handset_mt_rejects_malformed_episodes(text, error):
         convert(text, "t")
 
 
-@pytest.mark.parametrize("name", ["test_hand6", "test_hand7"])
+@pytest.mark.parametrize("name", ["test_hand6", "test_hand7", "test_hand8"])
 def test_hand_episode_jsonl_is_generated_from_its_text_source(name):
     from toolcall.handset_mt import convert, to_jsonl
     src = DATA / f"{name}.txt"

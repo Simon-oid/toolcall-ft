@@ -9,11 +9,13 @@ this is the design.
 ```
  cMCP servers ──snapshot_tools.sh──► data/tools.json (6 tools, their inputSchemas)
                                            │
- data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand … test_hand7
+ data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand … test_hand8
  episodes.py ──► mt_* (episodes, results     │                       (written by hand;
    in the servers' formats, corpus.py)      │                        handset.py, handset_mt.py)
  grounded.py ──► mt_*_g (final replies       │
-   that carry the value, v6)                 ▼
+   that carry the value, v6)                 │
+ rare.py ──► mt7_* (the episode shapes       │
+   episodes.py never makes, v7)              ▼
         │                          prompt.py: the model's own chat template + tools
         │ distill.py: base model           │
         │ answers the chit-chat            ▼
@@ -91,7 +93,7 @@ raw reply is judged.
 | `test_id`: seen phrasings, unseen values | did it memorise the file names and topics? |
 | `test_ood`: held-out phrasing families, unseen values | did it memorise the phrasings? |
 | `test_hand` to `test_hand5`: written by hand | did it learn the generator's style and not the task? |
-| `mt_test_id`, `mt_test_ood`, `test_hand6`, `test_hand7`: episodes | can it chain calls and follow a conversation? |
+| `mt_test_id`, `mt_test_ood`, `mt7_test_id`, `mt7_test_ood`, `test_hand6` to `test_hand8`: episodes | can it chain calls and follow a conversation? |
 
 - **Hygiene, enforced by tests:**
   - no test request or test value appears in training;
@@ -102,7 +104,11 @@ raw reply is judged.
   used to decide what v2 should fix. So `test_hand2` was written and
   committed before v2 was trained: the commit order is the evidence that it
   is blind. `test_hand6` was read to design v6's fix, so `test_hand7` was
-  written and committed before any v6 or DPO result was opened.
+  written and committed before any v6 or DPO result was opened. Both were
+  then read to choose v7's new episode kinds, so `test_hand8` was written
+  from a brief and committed before the generator that makes them
+  (`rare.py`); the check that its requests are not in training reports
+  counts only, so it stays unread.
 
 ### 6. Training sees exactly what evaluation sees
 
