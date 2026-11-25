@@ -1,0 +1,409 @@
+# test_hand8: hand-written episodes (multi-step and multi-turn), third series.
+# Written by hand by Simone on 2026-11-25, from scheda-test_hand8.md. The author knew
+# the eight families v6 fails on (listed in the brief) but had not seen the generator,
+# its new episode kinds or any v7 result. Frozen once committed.
+# Label prefixes: f1_..f8_ = the eight families (part A); new_ = shapes in none of
+# them (part B); base_ = routine episodes v6 already handles (part C).
+# Format: src/toolcall/handset_mt.py. One message per line, blank line between episodes:
+#   E | label   U | user   c | history call   s | history reply
+#   C | scored call   r | tool result (\n = newline)   A | facts the final reply must contain
+# A is checked by substring (case-insensitive); any: accepts one of several phrases.
+
+# ======== PARTE A: le otto famiglie (f1_ .. f8_) ========
+
+# --- f1: catene lunghe (3+ chiamate) ---
+
+# 1 — drill two folders deep and read a config
+E | f1_drill_to_nested_config
+U | somewhere inside platform/ there's a redis.conf, find it and show me what's inside
+C | fs_list path=platform/
+r | dir  0  cache\ndir  0  queue\nfile  280  overview.md
+C | fs_list path=platform/cache/
+r | file  190  redis.conf\nfile  310  memcached.conf\ndir  0  scripts
+C | fs_read path=platform/cache/redis.conf
+r | bind 127.0.0.1\nmaxmemory 256mb\nmaxmemory-policy allkeys-lfu\nsave 900 1
+A | 256mb; allkeys-lfu
+
+# 2 — search docs, read the file, then read a file it references
+E | f1_search_read_follow_ref
+U | look up our logging policy and follow any file it references
+C | crag_search query~=[log, policy]
+r | [cos 0.820  bm25 7.30  fusion 0.041] ops/logging-policy.md\nAll services must log to stdout in JSON format. See ops/log-schema.json for the field definitions.
+C | fs_read path=ops/logging-policy.md
+r | # Logging Policy\n\nAll services log to stdout in JSON.\nFields: see ops/log-schema.json.\nRetention: 14 days in Loki.\nAlert on ERROR rate > 5/min.
+C | fs_read path=ops/log-schema.json
+r | {\n  "timestamp": "ISO-8601",\n  "level": "INFO|WARN|ERROR",\n  "service": "string",\n  "message": "string",\n  "trace_id": "uuid, optional"\n}
+A | 14 days; trace_id
+
+# --- f2: ritentare dopo un buco ---
+
+# 3 — file not found, fall back to listing the parent
+E | f2_file_missing_list_parent
+U | read the runbook at ops/incident-runbook.md
+C | fs_read path=ops/incident-runbook.md
+r | error: no such file or directory
+C | fs_list path=ops/
+r | file  410  playbook.md\nfile  290  escalation.md\nfile  175  contacts.csv
+A | any: playbook.md; escalation.md; not found
+
+# 4 — crag search off-topic, refine with different terms
+E | f2_search_miss_refine
+U | what's the WAL mode setting for our database?
+C | crag_search query~=[WAL, mode, database]
+r | [cos 0.420  bm25 2.60  fusion 0.012] docs/glossary.md\nWAL: Write-Ahead Logging, a journaling method used by databases.
+C | crag_search query~=[sqlite, journal, pragma]
+r | [cos 0.780  bm25 6.80  fusion 0.038] config/db-init.sql\nPRAGMA journal_mode=WAL;\nPRAGMA busy_timeout=5000;
+A | journal_mode=WAL; busy_timeout=5000
+
+# --- f3: fermarsi quando si sa già ---
+
+# 5 — empty index, user asks to search
+E | f3_empty_index_abort
+U | check how many documents we have indexed
+c | crag_stats
+r | db:     data/docs.db\nchunks: 0\nfiles:  0\ndim:    768
+s | The index is empty right now — zero files, zero chunks.
+U | search for backup procedures then
+A | any: index is empty; no documents; nothing indexed; zero chunks
+
+# 6 — file already failed, user asks about it again
+E | f3_file_gone_twice
+U | can you read inventory/stock.csv?
+c | fs_read path="inventory/stock.csv"
+r | error: no such file or directory
+s | That file doesn't exist — inventory/stock.csv is not found.
+U | hmm, try reading inventory/stock.csv one more time
+A | any: does not exist; not found; no such file; already tried
+
+# 7 — size already visible in the listing
+E | f3_size_in_listing
+U | what's inside the uploads/ folder?
+c | fs_list path="uploads/"
+r | file  93200  dataset.parquet\nfile  4100  metadata.yaml\nfile  720  checksums.txt
+s | Three files: dataset.parquet (93200 bytes), metadata.yaml (4100 bytes), and checksums.txt (720 bytes).
+U | how big is dataset.parquet?
+A | any: 93200; 93,200
+
+# --- f4: leggi, modifica, scrivi ---
+
+# 8 — change a value inside a TOML config
+E | f4_edit_toml_timeout
+U | the connection_timeout in network/client.toml is 10, bump it to 60
+C | fs_read path=network/client.toml
+r | [client]\nconnection_timeout = 10\nretries = 3\nuser_agent = "appbot/2.1"
+C | fs_write path=network/client.toml content~=[connection_timeout, 60, retries, 3, user_agent]
+r | wrote 74 bytes to network/client.toml
+A | 60; network/client.toml
+
+# 9 — add a line to a YAML list
+E | f4_add_yaml_entry
+U | add "numpy" to the dependencies list in env/requirements.yaml
+C | fs_read path=env/requirements.yaml
+r | dependencies:\n  - pandas\n  - scipy\n  - matplotlib
+C | fs_write path=env/requirements.yaml content~=[numpy, pandas, scipy, matplotlib]
+r | wrote 65 bytes to env/requirements.yaml
+A | numpy; env/requirements.yaml
+
+# --- f5: elenco, poi metadati ---
+
+# 10 — pick the largest file and ask for its modification date
+E | f5_largest_file_mtime
+U | which file in backups/ is the biggest? when was it last modified?
+C | fs_list path=backups/
+r | file  540000  full-2026-10.tar.gz\nfile  120000  incr-2026-11-01.tar.gz\nfile  310000  full-2026-09.tar.gz
+C | fs_stat path=backups/full-2026-10.tar.gz
+r | path:     backups/full-2026-10.tar.gz\ntype:     file\nsize:     540000\nmodified: 2026-10-31T03:15:00Z\nmode:     0640
+A | full-2026-10.tar.gz; 2026-10-31
+
+# 11 — list and stat for permissions
+E | f5_check_permissions
+U | list creds/ and tell me the permissions of the .pem file
+C | fs_list path=creds/
+r | file  1700  server.pem\nfile  240  ca-bundle.crt\nfile  88  fingerprint.txt
+C | fs_stat path=creds/server.pem
+r | path:     creds/server.pem\ntype:     file\nsize:     1700\nmodified: 2026-09-12T08:00:00Z\nmode:     0400
+A | server.pem; 0400
+
+# --- f6: file lunghi a pezzi ---
+
+# 12 — read the first 15 lines, then the next 15
+E | f6_paginated_access_log
+U | show me lines 1 through 15 of var/access.log
+c | fs_read path="var/access.log" offset=1 limit=15
+r | 10.0.0.1 GET /api/users 200 12ms\n10.0.0.2 POST /api/login 200 45ms\n10.0.0.3 GET /api/users/5 200 8ms\n10.0.0.1 GET /api/health 200 2ms\n10.0.0.4 DELETE /api/sessions 204 15ms\n10.0.0.2 GET /api/items 200 22ms\n10.0.0.5 POST /api/upload 413 1ms\n10.0.0.1 GET /api/users 200 11ms\n10.0.0.3 PUT /api/users/5 200 30ms\n10.0.0.6 GET /api/items?page=2 200 19ms\n10.0.0.2 GET /api/health 200 1ms\n10.0.0.4 POST /api/login 401 5ms\n10.0.0.7 GET /static/logo.png 304 0ms\n10.0.0.1 GET /api/items 200 18ms\n10.0.0.8 OPTIONS /api/users 204 0ms
+s | Here are lines 1 through 15. There's a 413 on line 7 (upload too large), a 401 on line 12 (failed login), and a 304 on line 13.
+U | next 15 please
+C | fs_read path=var/access.log offset=16 limit=15
+r | 10.0.0.2 GET /api/users/3 200 9ms\n10.0.0.9 POST /api/register 201 60ms\n10.0.0.1 GET /api/health 200 2ms\n10.0.0.3 GET /api/items 200 20ms\n10.0.0.4 POST /api/login 200 42ms\n10.0.0.5 GET /api/users 403 3ms\n10.0.0.2 DELETE /api/users/8 200 25ms\n10.0.0.10 GET /api/items?q=widget 200 35ms\n10.0.0.1 PATCH /api/users/1 200 14ms\n10.0.0.6 GET /api/health 200 1ms\n10.0.0.3 POST /api/upload 200 180ms\n10.0.0.11 GET / 301 0ms\n10.0.0.2 GET /api/items 200 21ms\n10.0.0.4 GET /api/users/4 200 7ms\n10.0.0.9 GET /api/health 200 2ms
+A | 403; 201
+
+# 13 — read a specific range
+E | f6_specific_range
+U | give me lines 101 to 110 of data/events.jsonl
+C | fs_read path=data/events.jsonl offset=101 limit=10
+r | {"event":"click","page":"/pricing","ts":"2026-11-01T08:12:00Z"}\n{"event":"scroll","page":"/pricing","ts":"2026-11-01T08:12:05Z"}\n{"event":"click","page":"/signup","ts":"2026-11-01T08:12:10Z"}\n{"event":"submit","page":"/signup","ts":"2026-11-01T08:12:22Z"}\n{"event":"pageview","page":"/welcome","ts":"2026-11-01T08:12:23Z"}\n{"event":"click","page":"/welcome","ts":"2026-11-01T08:12:30Z"}\n{"event":"scroll","page":"/docs","ts":"2026-11-01T08:12:45Z"}\n{"event":"click","page":"/docs/api","ts":"2026-11-01T08:12:50Z"}\n{"event":"pageview","page":"/docs/api","ts":"2026-11-01T08:12:50Z"}\n{"event":"click","page":"/docs/api","ts":"2026-11-01T08:13:01Z"}
+A | submit; /signup
+
+# --- f7: l'utente corregge ---
+
+# 14 — user says "no, I meant the staging one"
+E | f7_wrong_env_correction
+U | read the database config
+c | fs_read path="config/database.yaml"
+r | host: db.prod.internal\nport: 5432\nname: appdb\npool: 20
+s | The database config points to db.prod.internal on port 5432, database appdb with pool size 20.
+U | no sorry, I meant the staging one
+C | fs_read path=config/staging/database.yaml|config/database-staging.yaml|staging/database.yaml
+r | host: db.staging.internal\nport: 5432\nname: appdb_staging\npool: 5
+A | db.staging.internal; appdb_staging
+
+# 15 — user corrects which directory
+E | f7_wrong_folder_redirect
+U | list the modules directory
+c | fs_list path="modules/"
+r | file  620  auth.py\nfile  480  billing.py\nfile  390  notifications.py
+s | Three modules: auth.py, billing.py, and notifications.py.
+U | oh wait I wanted the plugins directory, not modules
+C | fs_list path=plugins/
+r | file  510  cache-plugin.py\nfile  340  logger-plugin.py\ndir  0  contrib
+A | cache-plugin.py; logger-plugin.py
+
+# --- f8: scrivi e verifica ---
+
+# 16 — write then read back
+E | f8_write_readback
+U | write the string "db_host=10.0.0.5" to secrets/db.env and then read it back so I can check
+C | fs_write path=secrets/db.env content~=[db_host, 10.0.0.5]
+r | wrote 16 bytes to secrets/db.env
+C | fs_read path=secrets/db.env
+r | db_host=10.0.0.5
+A | 10.0.0.5
+
+# 17 — write, then user asks how many bytes (answer from history, no call)
+E | f8_write_bytes_from_history
+U | save the text "weekly sync cancelled" to notes/update.md
+c | fs_write path="notes/update.md" content="weekly sync cancelled"
+r | wrote 21 bytes to notes/update.md
+s | Saved to notes/update.md.
+U | how many bytes was that?
+A | 21
+
+# ======== PARTE B: forme nuove (new_) ========
+
+# 18 — two independent requests in one message
+E | new_two_requests_one_msg
+U | read the license file at LICENSE and also check how many docs are in the crag index
+C | fs_read path=LICENSE
+r | MIT License\n\nCopyright (c) 2026 Acme Corp\n\nPermission is hereby granted, free of charge...
+C | crag_stats
+r | db:     data/docs.db\nchunks: 980\nfiles:  27\ndim:    768
+A | MIT; 980
+
+# 19 — conditional: check and report only if a condition holds
+E | new_conditional_age_check
+U | check the modification date of exports/report.pdf — if it's older than 2026-10-01 let me know, otherwise just say it's recent
+C | fs_stat path=exports/report.pdf
+r | path:     exports/report.pdf\ntype:     file\nsize:     82400\nmodified: 2026-08-14T11:30:00Z\nmode:     0644
+A | 2026-08-14
+
+# 20 — user changes mind mid-turn
+E | new_user_changes_mind
+U | actually read the changelog — wait no, just list the root directory
+C | fs_list
+r | dir  0  src\ndir  0  docs\ndir  0  tests\nfile  1800  CHANGELOG.md\nfile  420  Makefile
+A | CHANGELOG.md; Makefile
+
+# 21 — crag search followed by fs_write (unusual server mix)
+E | new_search_then_save
+U | look up the SLA targets and save them to a file called notes/sla.md
+C | crag_search query~=[SLA, target]
+r | [cos 0.830  bm25 7.50  fusion 0.043] compliance/sla.md\nUptime target: 99.9%. P95 latency: < 200ms. Incident response: 15 minutes.
+C | fs_write path=notes/sla.md content~=[99.9, 200ms, 15 minute]
+r | wrote 72 bytes to notes/sla.md
+A | notes/sla.md; 99.9
+
+# 22 — fs_write then crag_search in the same episode (write first, search second)
+E | new_write_then_search
+U | first create a file at tmp/query.txt with the text "find auth docs" and then search the knowledge base for authentication middleware
+C | fs_write path=tmp/query.txt content~=[find, auth, docs]
+r | wrote 14 bytes to tmp/query.txt
+C | crag_search query~=[authentication, middleware]
+r | [cos 0.790  bm25 6.60  fusion 0.036] src/middleware/auth.md\nThe authentication middleware validates JWT tokens and checks the X-Tenant-ID header. Invalid tokens return 401.
+A | X-Tenant-ID; 401
+
+# 23 — the user asks something the tools can't do (no-call)
+E | new_unsupported_operation
+U | can you zip up the logs/ directory and upload it somewhere?
+A |
+
+# 24 — user gives an instruction that requires running a command (no-call)
+E | new_cannot_execute
+U | run pytest on the tests/ folder and show me the output
+A |
+
+# 25 — search returns two chunks, user asks about the second
+E | new_ask_about_second_chunk
+U | search for rate limiting with 2 results
+c | crag_search query="rate limiting" k=2
+r | [cos 0.850  bm25 7.80  fusion 0.044] config/nginx-ratelimit.conf\nlimit_req_zone $binary_remote_addr zone=api:10m rate=100r/s;\n\n[cos 0.720  bm25 5.90  fusion 0.031] docs/api-guide.md\nClients exceeding the rate limit receive HTTP 429 with a Retry-After header.
+s | Two results. The nginx config sets 100 requests/second per IP. The API guide says clients get 429 with a Retry-After header.
+U | what header does the second result mention?
+A | Retry-After
+
+# 26 — user wants to check if a path is a file or directory
+E | new_stat_to_distinguish_type
+U | I'm not sure if models/bert is a file or a directory, can you check?
+C | fs_stat path=models/bert
+r | path:     models/bert\ntype:     dir\nsize:     0\nmodified: 2026-11-10T14:00:00Z\nmode:     0755
+A | dir
+
+# 27 — read a file, notice an error in it, search docs for the correct value
+E | new_read_then_search_correct_value
+U | read infra/ports.conf, I think the monitoring port is wrong — look up what it should be
+C | fs_read path=infra/ports.conf
+r | http=8080\nhttps=8443\nmonitoring=3000\ngrpc=50051
+C | crag_search query~=[monitor, port]
+r | [cos 0.810  bm25 7.00  fusion 0.039] standards/port-assignment.md\nThe monitoring endpoint must listen on port 9090 (Prometheus convention). Do not use 3000.
+A | 9090; 3000
+
+# 28 — previous context resolves the question, but it's tricky: user asks about something not explicitly said (no-call)
+E | new_infer_from_context
+U | read gateway/routes.yaml
+c | fs_read path="gateway/routes.yaml"
+r | routes:\n  - path: /api/v1/*\n    upstream: http://backend:8080\n  - path: /static/*\n    upstream: http://cdn:443\n  - path: /ws/*\n    upstream: ws://realtime:9000
+s | The routes file maps /api/v1/* to backend:8080, /static/* to cdn:443, and /ws/* to realtime:9000.
+U | how many routes are defined?
+A | 3
+
+# 29 — greeting from user, nothing to do (no-call)
+E | new_greeting_no_action
+U | check the project structure
+c | fs_list
+r | dir  0  src\ndir  0  docs\ndir  0  tests\nfile  2400  README.md\nfile  380  setup.cfg
+s | Root has src/, docs/, tests/, README.md and setup.cfg.
+U | cool, I'll come back later with questions
+A |
+
+# 30 — ambiguous request mid-chain: list works, then target is ambiguous (no-call)
+E | new_ambiguous_mid_chain
+U | list the configs/ folder and read the main config file
+C | fs_list path=configs/
+r | file  320  app.toml\nfile  280  server.toml\nfile  190  worker.toml
+A |
+
+# ======== PARTE C: routine (base_) ========
+
+# 30 — list then read
+E | base_list_then_read
+U | what's in the specs/ folder? show me the markdown file
+C | fs_list path=specs/
+r | file  2100  api-spec.md\nfile  890  proto.graphql\nfile  430  types.ts
+C | fs_read path=specs/api-spec.md
+r | # API Specification v3\n\nBase URL: https://api.internal/v3\nAuth: Bearer token (OAuth2)\nContent-Type: application/json\n\n## Endpoints\n\nGET /users — list all users\nPOST /users — create a user
+A | Bearer token; /users
+
+# 31 — search then write
+E | base_search_then_write
+U | find the incident postmortem template and save a copy to drafts/postmortem.md
+C | crag_search query~=[incident, postmortem, template]
+r | [cos 0.840  bm25 7.40  fusion 0.042] templates/postmortem.md\n# Postmortem Template\n\n**Date:**\n**Severity:**\n**Summary:**\n**Root cause:**\n**Action items:**
+C | fs_write path=drafts/postmortem.md content~=[Postmortem, Severity, Root cause, Action items]
+r | wrote 85 bytes to drafts/postmortem.md
+A | drafts/postmortem.md
+
+# 32 — stat then read
+E | base_stat_then_read
+U | check if deploy/rollback.sh exists and if so show me its contents
+C | fs_stat path=deploy/rollback.sh
+r | path:     deploy/rollback.sh\ntype:     file\nsize:     320\nmodified: 2026-11-15T07:30:00Z\nmode:     0755
+C | fs_read path=deploy/rollback.sh
+r | #!/bin/bash\nset -euo pipefail\nTAG="${1:?usage: rollback.sh \u003ctag\u003e}"\necho "Rolling back to $TAG"\nkubectl set image deploy/app app=registry.internal/app:$TAG\nkubectl rollout status deploy/app --timeout=120s\necho "Rollback complete"
+A | rollback; kubectl; 120s
+
+# 33 — user refers to "it" from previous turn
+E | base_pronoun_it
+U | read the lockfile at vendor/go.sum
+c | fs_read path="vendor/go.sum"
+r | golang.org/x/net v0.17.0 h1:ABC=\ngolang.org/x/text v0.13.0 h1:DEF=\ngoogle.golang.org/grpc v1.59.0 h1:GHI=
+s | The go.sum has three entries: x/net v0.17.0, x/text v0.13.0, and grpc v1.59.0.
+U | what version of grpc is in it?
+A | 1.59.0
+
+# 34 — user refers to "the second one"
+E | base_ordinal_second
+U | list the hooks/ directory
+c | fs_list path="hooks/"
+r | file  280  pre-commit.sh\nfile  190  pre-push.sh\nfile  150  post-merge.sh
+s | Three hooks: pre-commit.sh, pre-push.sh, and post-merge.sh.
+U | read the second one
+C | fs_read path=hooks/pre-push.sh
+r | #!/bin/bash\necho "Running tests before push..."\npytest tests/ -q\nexit $?
+A | pytest; tests/
+
+# 35 — user refers to "same folder"
+E | base_same_folder
+U | list the schemas/ directory
+c | fs_list path="schemas/"
+r | file  1200  user.json\nfile  980  order.json\nfile  1400  product.json
+s | Three schema files: user.json, order.json, and product.json.
+U | read the order schema from the same folder
+C | fs_read path=schemas/order.json
+r | {\n  "type": "object",\n  "properties": {\n    "order_id": {"type": "integer"},\n    "customer": {"type": "string"},\n    "total_cents": {"type": "integer"},\n    "status": {"type": "string", "enum": ["pending","shipped","delivered"]}\n  },\n  "required": ["order_id","customer","total_cents"]\n}
+A | order_id; total_cents
+
+# 36 — simple search and report
+E | base_simple_search
+U | look up information about the caching strategy
+C | crag_search query~=[cach, strategy]
+r | [cos 0.800  bm25 6.90  fusion 0.038] architecture/caching.md\nWe use a two-tier cache: L1 is in-process (LRU, 128 MB) and L2 is Redis (1 GB, 10-minute TTL).
+A | two-tier; LRU; Redis
+
+# 37 — read a single file
+E | base_read_simple
+U | show me what's in .editorconfig
+C | fs_read path=.editorconfig
+r | root = true\n\n[*]\nindent_style = space\nindent_size = 4\ncharset = utf-8\ntrim_trailing_whitespace = true\ninsert_final_newline = true
+A | indent_size; 4
+
+# 38 — ambiguous reference after listing (no-call)
+E | base_ambiguous_pronoun
+U | list the certificates/ directory
+c | fs_list path="certificates/"
+r | file  1800  dev.pem\nfile  1900  staging.pem\nfile  2100  prod.pem
+s | Three certificates: dev.pem, staging.pem, and prod.pem.
+U | renew that certificate
+A |
+
+# 39 — user asks a plain question unrelated to files (no-call)
+E | base_offtopic_question
+U | check the readme
+c | fs_read path="README.md"
+r | # Widget Factory\n\nA microservice for generating widgets.\n\nStack: Python 3.11, FastAPI, PostgreSQL.
+s | Widget Factory is a microservice for generating widgets, using Python 3.11, FastAPI, and PostgreSQL.
+U | what's FastAPI built on top of?
+A |
+
+# 40 — previous turn did a write, user says thanks (no-call)
+E | base_thanks_after_write
+U | write "deploy v4.1.0 approved" to releases/approval.txt
+c | fs_write path="releases/approval.txt" content="deploy v4.1.0 approved"
+r | wrote 22 bytes to releases/approval.txt
+s | Done — saved to releases/approval.txt.
+U | great that's all I needed
+A |
+
+# 41 — search yields nothing (no-call answer)
+E | base_search_no_results
+U | look up information about GraphQL subscriptions
+C | crag_search query~=[GraphQL, subscript]
+r | (no chunk cleared the relevance threshold — the index is non-empty but nothing matched this query)
+A | any: no results; nothing matched; no information found; not found in the knowledge base
+
+# 43 — unsupported operation requested after a successful read (no-call)
+E | base_unsupported_after_read
+U | read the temp log at tmp/debug.log
+c | fs_read path="tmp/debug.log"
+r | 2026-11-25 10:00:01 DEBUG startup ok\n2026-11-25 10:00:02 DEBUG cache warmed
+s | tmp/debug.log has two debug lines from startup and cache warmup.
+U | okay, delete tmp/debug.log now
+A |
