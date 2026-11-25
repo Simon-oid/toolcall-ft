@@ -105,8 +105,8 @@ Three DPO rounds from v5 were measured against v6
 
 ## Side effects of the training
 
-- **Answering from documents was checked, and held.** On askdocs' 45
-  questions no version regresses against the base 1.5B by askdocs' gate. On
+- **Answering from documents was checked, and held.** On askdocs' evaluation
+  questions (45 for v1–v2, 53 from v3 on) no version regresses against the base 1.5B by askdocs' gate. On
   the latest askdocs, v6 recalls more key facts than the base (0.66 against
   0.49) and refuses 1 answerable question in 43 (base: 9). One seed per
   version; v4 refused more than v3 (0.23 against 0.05), so caution learned

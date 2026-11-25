@@ -320,9 +320,10 @@ Per-seed tables and paired tests are in
 ## Does it still answer questions?
 
 Training a model to call tools can cost it its general ability. So each
-version answered [askdocs](https://github.com/Simon-oid/askdocs)' 45
-evaluation questions, which need grounded, cited answers and no tool calls,
-with the same retrieval, and a 7B judged faithfulness. These runs share one
+version answered [askdocs](https://github.com/Simon-oid/askdocs)' 53
+evaluation questions (43 answerable, 10 to refuse), which need grounded,
+cited answers and no tool calls, with the same retrieval, and a 7B judged
+faithfulness. These runs share one
 askdocs version and one base run, seed 0 of each model, 2026-11-22 to 11-25
 ([`results/askdocs-forgetting-v6/`](results/askdocs-forgetting-v6/)):
 

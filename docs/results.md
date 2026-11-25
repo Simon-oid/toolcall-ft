@@ -365,7 +365,8 @@ are in [`results/compare-dpo2/`](../results/compare-dpo2/) and
 
 Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
-[askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions,
+[askdocs](https://github.com/Simon-oid/askdocs)' 45 evaluation questions (53
+from the v3 rerun on),
 which need grounded, cited answers and no tool calls, with the same
 retrieval. A 7B judged faithfulness. Reports are in
 [`results/askdocs-forgetting/`](../results/askdocs-forgetting/).
