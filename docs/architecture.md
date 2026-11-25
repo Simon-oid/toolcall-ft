@@ -1,6 +1,7 @@
 # Architecture
 
-How toolcall-ft is put together, and why. The numbers are in the README;
+How toolcall-ft is put together, and why. The numbers are in the
+[README](../README.md) and, version by version, in [`results.md`](results.md);
 this is the design.
 
 ## The pipeline
@@ -8,21 +9,25 @@ this is the design.
 ```
  cMCP servers ──snapshot_tools.sh──► data/tools.json (6 tools, their inputSchemas)
                                            │
- data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand, test_hand2
-        │                                  │                          (written by hand)
+ data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand … test_hand7
+ episodes.py ──► mt_* (episodes, results     │                       (written by hand;
+   in the servers' formats, corpus.py)      │                        handset.py, handset_mt.py)
+ grounded.py ──► mt_*_g (final replies       │
+   that carry the value, v6)                 ▼
+        │                          prompt.py: the model's own chat template + tools
         │ distill.py: base model           │
         │ answers the chit-chat            ▼
-        ▼                          prompt.py: the model's own chat template + tools
- train.py: LoRA, loss on the               │
+        ▼                          llama.cpp server (GGUF), one request at a time
+ train.py: LoRA, loss on the               │ raw text
  completion only                           ▼
-        │                          llama.cpp server (GGUF), one request at a time
-        ▼                                  │ raw text
- export.py: merge ► GGUF Q8_0 ─────────────┤
-                                           ▼
-                          score.py ◄── judge/judge.c (cMCP's parser + schema validator)
-                                           │
-                          evaluate.py ► results/<run>/results.jsonl, report.md
-                          scripts/compare.py (paired), scripts/summarize.py
+        │                          score.py ◄── judge/judge.c (cMCP's parser + schema validator)
+        ▼                                  │
+ export.py: merge ► GGUF Q8_0 ──► served   ▼
+        │                          evaluate.py ► results/<run>/results.jsonl, report.md
+        ▼                          scripts/compare.py (one seed), pooled.py and means.py (three)
+ prefs.py + sample.py: on-policy
+ pairs ► dpo.py: DPO LoRA on the
+ merged SFT model ► export.py
 ```
 
 ## Decisions
@@ -85,7 +90,7 @@ raw reply is judged.
 |---|---|
 | `test_id`: seen phrasings, unseen values | did it memorise the file names and topics? |
 | `test_ood`: held-out phrasing families, unseen values | did it memorise the phrasings? |
-| `test_hand`, `test_hand2`: written by hand | did it learn the generator's style and not the task? |
+| `test_hand` to `test_hand5`: written by hand | did it learn the generator's style and not the task? |
 | `mt_test_id`, `mt_test_ood`, `test_hand6`, `test_hand7`: episodes | can it chain calls and follow a conversation? |
 
 - **Hygiene, enforced by tests:**
@@ -160,19 +165,19 @@ use the targets, not in what the targets say.
 
 - **Buys:** a clean answer to "do preferences fix this better than
   retraining?", and the grounded answer rules score both the same way.
-- **Costs:** DPO only sees final turns, so nothing in its loss holds the
-  call turns of the same episodes in place. It moved them: it replies
-  instead of calling early in the kinds of episode its pairs came from.
-  Round 2 added pairs on the call turns (the right call over a sampled
-  mistake of round 1) and overshot the other way: with only "call beats
-  what you said" pairs and none for "a reply beats a call", it calls on
-  requests that need no tool (test_ood abstention 0.06 and 0.02 on two
-  seeds). Round 3 added abstain pairs (the training reply over an
-  unneeded call) and swung back: abstention returned and calls fell with
-  the ratio of abstain to call pairs (generated episodes 0.02 on the seed
-  with 4.1 to 1). Preference pairs move whatever they touch; the mix of
-  pair kinds becomes a knob that sets the call rate, and SFT on whole
-  episodes (v6) does not have it.
+- **Costs:** the pairs only constrain the turns they are on. Round 1's
+  pairs were final turns, and it replied instead of calling on the call
+  turns before them. Round 2 added call pairs (the right call over a sampled
+  mistake) and called on requests that need no tool; round 3 added abstain
+  pairs (the training reply over an unneeded call) and stopped calling, in
+  proportion to the ratio of abstain to call pairs. The mix of pair kinds
+  becomes a knob that sets the call rate. SFT on whole episodes (v6) has no
+  such knob, which is why it is the default.
+- **Rejected sides are sampled when greedy is too right.** On its own
+  training data a model is almost never wrong greedy (round-1 DPO: 24 of
+  2254 call turns), so `sample.py` draws 4 samples at temperature 1 and
+  keeps the first mistake. The rejected side stays what the model would
+  actually say.
 - **The reference is v5 itself.** The DPO LoRA is trained on the merged v5
   and the reference is the same weights with the adapter off, so the KL term
   keeps DPO near v5, not near the base model.
@@ -192,4 +197,27 @@ python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/
 llama-server -m models/ft-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
 python -m toolcall.evaluate --name ft-free --model Qwen/Qwen2.5-1.5B-Instruct
 python scripts/compare.py 1.5b-free ft-free
+```
+
+v6, with the episodes and the grounded final replies, and its episode sets:
+
+```sh
+python -m toolcall.train    --model Qwen/Qwen2.5-1.5B-Instruct --out models/ft-v6 --multistep --grounded
+python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/ft-v6
+llama-server -m models/ft-v6-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
+python -m toolcall.evaluate --name mtg-ft-v6-free  --model Qwen/Qwen2.5-1.5B-Instruct --splits mt_test_id_g,mt_test_ood_g
+python -m toolcall.evaluate --name hand7-ft-v6-free --model Qwen/Qwen2.5-1.5B-Instruct --splits test_hand7
+```
+
+DPO from v5 (`models/ft-v5`, trained with `--multistep`), round 1; rounds 2
+and 3 add `--calls-from` and `--abstain-from` runs made by `toolcall.sample`:
+
+```sh
+python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/ft-v5   # -> models/ft-v5-merged
+llama-server -m models/ft-v5-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
+python -m toolcall.evaluate --name onpolicy-v5 --model Qwen/Qwen2.5-1.5B-Instruct --splits train,mt_train
+python -m toolcall.prefs    --run onpolicy-v5 --out data/prefs_v5.jsonl
+# stop the server
+python -m toolcall.dpo      --start models/ft-v5-merged --out models/dpo --prefs data/prefs_v5.jsonl
+python -m toolcall.export   --model models/ft-v5-merged --adapter models/dpo
 ```

@@ -1,4 +1,4 @@
-# v5 -> v6 -> DPO (point 26)
+# v5 -> v6 -> DPO
 
 - `pooled.md`: `scripts/pooled.py`, the three seeds' fixed/broken counts summed, exact McNemar per seed.
 - `all-sets.txt`: `scripts/compare.py` per seed on every set (calls and abstentions only).

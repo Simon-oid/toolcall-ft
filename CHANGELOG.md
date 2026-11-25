@@ -4,7 +4,19 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
-- DPO round 3 (point 26c): round 2's pairs plus abstain pairs on the 615
+### Documentation
+
+- README restructured around the default model (v6): results, findings,
+  one table per version and one DPO section; the version-by-version record
+  moved to `docs/results.md`. Dataset table corrected (val 153, test_ood
+  294; train 1527 → 1967), and two rounding errors fixed (v5's calls on
+  test_hand7 0.69, v6's calls inside generated episodes 0.87).
+  `KNOWN_LIMITATIONS.md` describes v6, `docs/architecture.md` covers
+  episodes and DPO, with the commands to reproduce both.
+
+### Preference tuning (DPO, three rounds)
+
+- DPO round 3: round 2's pairs plus abstain pairs on the 615
   training turns that need no call, an unneeded call sampled from round 2
   rejected and the training reply chosen (`toolcall.sample --abstain`,
   `toolcall.prefs --abstain-from`): 505, 565 and 99 by seed, from v5.
@@ -13,7 +25,7 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
   ratio of abstain to call pairs; seed 0 swaps `crag_search` for
   `crag_stats`. askdocs key facts 0.70, wrong refusals 0.05 (one seed).
   v6 stays the default. `scripts/means.py`: per-family rates over seeds.
-- DPO round 2 (point 26b): round 1's 231 final-reply pairs plus pairs on the
+- DPO round 2: round 1's 231 final-reply pairs plus pairs on the
   call turns of train and mt_train, the right call chosen and a mistake of
   round-1 DPO rejected (`toolcall.sample`: 4 samples at T=1, since greedy it
   is wrong on only 24 of 2254; `toolcall.prefs --calls-from`): 181, 189 and
@@ -23,7 +35,10 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
   seed (0 fixed, 220 broken pooled), episodes right on test_hand7 0.47 →
   0.30. The set had no pairs preferring a reply to a call. v6 stays the
   default. `LlamaCpp` gains `temperature` and `seed`.
-- v6 and DPO (point 26): grounded final replies (`toolcall.grounded`: after
+
+### v6: grounded final replies
+
+- v6 and DPO: grounded final replies (`toolcall.grounded`: after
   a save the reply quotes what was written, after a check-then-read it gives
   the size and the contents; 231 training episodes change), learned two
   ways, three seeds each. v6 retrains v5's recipe on them; DPO trains a LoRA
@@ -39,6 +54,8 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
   result was opened.
 - `scripts/pooled.py`: paired comparison of two model families with the
   seeds' fixed and broken counts summed and McNemar per seed.
+
+### v5: episodes
 
 - v5: multi-step and multi-turn episodes (`toolcall.episodes`, ten kinds,
   results rendered in the servers' formats by `toolcall.corpus`), scored
@@ -56,6 +73,8 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 - `evaluate`: step and episode rates for episode splits; `compare.py`: a
   paired `step` metric for them.
 
+### v4: asking instead of guessing
+
 - v4: 140 ambiguous training cases answered with a clarifying question,
   three seeds, compared with v3 seed by seed. Abstention on test_ood
   0.94 ± 0.04 → 0.99 ± 0.01 (19 fixed, 2 broken); on the independent
@@ -69,6 +88,9 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
   before evaluation. `toolcall.handset` converts it to JSONL, and a test
   keeps the two identical.
 - askdocs forgetting check rerun for the base, v3 and v4.
+
+### v3: folders and trailing instructions
+
 - v3: 140 training cases for bare-folder `fs_list` and for a search
   constraint after a closed sentence, three seeds, compared with v2 seed by
   seed. Right call on test_ood 0.92 ± 0.05 → 0.96 ± 0.01; on the blind
@@ -76,6 +98,9 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
   0.97 → 0.94: v3 calls on some ambiguous requests v2 refused.
 - `data/test_hand3.jsonl`: 48 hand-written cases, committed before v3 was
   trained.
+
+### Baselines and analysis
+
 - Analysis: why the fine-tuned model loses calls under the lazy grammar
   (0.91 → 0.87). All 7 broken cases drop `limit` on a line range, because
   the training calls write `offset` before `limit` (147 of 147) and the

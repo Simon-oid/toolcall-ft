@@ -1,4 +1,4 @@
-# DPO round 3: final-reply + call + abstain pairs (point 26c)
+# DPO round 3: final-reply + call + abstain pairs
 
 - `pooled.md`: `scripts/pooled.py` for v5, v6, round 1 and round 2, each against
   `dpo3-1.5b-v5` (three seeds summed, exact McNemar per seed).
