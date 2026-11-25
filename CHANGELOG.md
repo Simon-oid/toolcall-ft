@@ -4,6 +4,15 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+- DPO round 3 (point 26c): round 2's pairs plus abstain pairs on the 615
+  training turns that need no call, an unneeded call sampled from round 2
+  rejected and the training reply chosen (`toolcall.sample --abstain`,
+  `toolcall.prefs --abstain-from`): 505, 565 and 99 by seed, from v5.
+  Abstention on test_ood returns to 0.94 / 1.00 / 1.00, but calls inside
+  generated episodes fall to 0.59 / 0.68 / 0.02 (v5 0.91), following the
+  ratio of abstain to call pairs; seed 0 swaps `crag_search` for
+  `crag_stats`. askdocs key facts 0.70, wrong refusals 0.05 (one seed).
+  v6 stays the default. `scripts/means.py`: per-family rates over seeds.
 - DPO round 2 (point 26b): round 1's 231 final-reply pairs plus pairs on the
   call turns of train and mt_train, the right call chosen and a mistake of
   round-1 DPO rejected (`toolcall.sample`: 4 samples at T=1, since greedy it

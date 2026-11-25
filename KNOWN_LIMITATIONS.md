@@ -134,6 +134,11 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
   now calls where no tool is needed: it abstains on 0.06 and 0.02 of
   test_ood's no-tool requests on the two seeds with ~185 call pairs, 0.82 on
   the seed with 24. No pair in the set preferred a reply to a call.
+- **Adding abstain pairs overshoots back.** DPO round 3 added pairs that
+  prefer the reply to an unneeded call; abstention returned (test_ood 0.94
+  to 1.00) and calls inside generated episodes fell to 0.59 / 0.68 / 0.02,
+  tracking the ratio of abstain to call pairs. With DPO the mix of pair
+  kinds sets the call rate, and no mix tried kept v5's calls.
 - **Both answer right after a stat.** Told that `archive` is a directory,
   four of six runs say "archive exists and is empty." instead of listing
   it, an effect of the grounded check-then-read replies.
@@ -147,7 +152,7 @@ It fails 9 to 16 of 294 `test_ood` cases, depending on the seed.
   as above. v5 (2026-11-22, one seed): key facts 0.55, wrong refusals 0.16,
   faithfulness 0.89, against the base's 0.49, 0.21 and 0.79. v6
   (2026-11-23, one seed): 0.66, 0.02, 0.85; DPO from v5: 0.56, 0.19, 0.72; DPO round 2:
-  0.53, 0.16, 0.88.
+  0.53, 0.16, 0.88; DPO round 3: 0.70, 0.05, 0.81.
 - **It is a weak answering model, like its base:** faithfulness 0.12 against
   0.60 for the 3B that askdocs uses.
 - **Nothing else about general ability was measured.**

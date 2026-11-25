@@ -167,8 +167,12 @@ use the targets, not in what the targets say.
   mistake of round 1) and overshot the other way: with only "call beats
   what you said" pairs and none for "a reply beats a call", it calls on
   requests that need no tool (test_ood abstention 0.06 and 0.02 on two
-  seeds). Preference pairs move whatever they touch and leave the rest
-  free; each behaviour to keep needs pairs of its own, or an SFT term.
+  seeds). Round 3 added abstain pairs (the training reply over an
+  unneeded call) and swung back: abstention returned and calls fell with
+  the ratio of abstain to call pairs (generated episodes 0.02 on the seed
+  with 4.1 to 1). Preference pairs move whatever they touch; the mix of
+  pair kinds becomes a knob that sets the call rate, and SFT on whole
+  episodes (v6) does not have it.
 - **The reference is v5 itself.** The DPO LoRA is trained on the merged v5
   and the reference is the same weights with the adapter off, so the KL term
   keeps DPO near v5, not near the base model.

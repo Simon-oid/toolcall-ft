@@ -37,6 +37,7 @@ as the 7B, and as a hosted 120B, and knows much better when not to call.**
 | **v6** (+ grounded replies), 3 seeds | 0.94 ± 0.03 | 0.96 ± 0.01 · 0.99 ± 0.02 | 0.98 ± 0.01 |
 | DPO from v5, 3 seeds | 0.92 ± 0.05 | 0.85 ± 0.08 · 0.92 ± 0.07 | 1.00 ± 0.01 |
 | DPO round 2 (+ call pairs), 3 seeds | 0.89 ± 0.09 | 0.84 ± 0.08 · 0.90 ± 0.13 | 0.30 ± 0.45 |
+| DPO round 3 (+ abstain pairs), 3 seeds | 0.54 ± 0.22 | 0.49 ± 0.14 · 0.53 ± 0.25 | 0.98 ± 0.03 |
 
 **Multi-step and multi-turn (v5, v6).** Chaining calls, such as listing a folder
 and then reading the right file, or resolving "how big is it?" after a read:
@@ -50,15 +51,16 @@ and then reading the right file, or resolving "how big is it?" after a read:
 | v6, 3 seeds | 0.86 ± 0.02 | 0.45 ± 0.08 | 0.44 ± 0.04 |
 | DPO from v5, 3 seeds | 0.81 ± 0.01 | 0.46 ± 0.02 | 0.50 ± 0.07 |
 | DPO round 2, 3 seeds | 0.73 ± 0.10 | 0.28 ± 0.12 | 0.30 ± 0.09 |
+| DPO round 3, 3 seeds | 0.45 ± 0.23 | 0.24 ± 0.08 | 0.33 ± 0.13 |
 
 v5's calls inside an episode are as good as the 7B's. Its final answers are
 not: it learned the generator's terse replies and often leaves out the value
 the user asked for ([below](#v5-multi-step-and-multi-turn)). v6 and DPO fix
 part of that (the value reaches the reply in 0.59 → 0.68 and 0.73 of set 2's
 final turns, the 7B 0.70), but whole episodes do not move, and DPO costs
-calls ([below](#v6-and-dpo-final-replies-that-report-the-value)). A second
-DPO round with pairs on the call turns overshot: it calls on requests that
-need no tool.
+calls ([below](#v6-and-dpo-final-replies-that-report-the-value)). Two more
+DPO rounds swung between calling everywhere and hardly calling: the mix of
+pair kinds set the call rate.
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -547,6 +549,31 @@ that needs no tool. A third round would need those abstain pairs too. On
 askdocs (seed 0) it keeps the base's level: key facts 0.53, wrong refusals
 0.16, faithfulness 0.88. Per-seed tests are in
 [`results/compare-dpo2/`](results/compare-dpo2/). v6 stays the default.
+
+**DPO round 3: abstain pairs too.** Round 2's model was sampled on the 615
+training turns that need no call (`sample.py --abstain`), and each call it
+made there became a pair with the training reply chosen: 505, 565 and 99
+abstain pairs by seed, with round 2's call and final-reply pairs, from v5.
+
+| per seed (0 / 1 / 2) | v5 | DPO r3 |
+|---|---|---|
+| abstains when it should, single-turn test_ood | 1.00 | 0.94 / 1.00 / 1.00 |
+| right call inside an episode, generated held-out | 0.91 | 0.59 / 0.68 / 0.02 |
+| right call inside an episode, test_hand7 | 0.69 | 0.33 / 0.53 / 0.03 |
+| final reply carries the value, test_hand7 | 0.59 | 0.63 / 0.70 / 0.78 |
+
+Abstention came back and the calls went: 371 broken and 5 fixed against v5
+on the generated episodes. The damage follows the ratio of abstain pairs to
+call pairs (2.8, 3.0 and 4.1 to 1); seed 2 answers "Run a retrieval on the
+soak test, please." with "Happy to help. What should I look up?". The
+rejected calls were real tool calls (`fs_write`, `crag_search`, `fs_list`),
+so DPO pushed those calls down everywhere: seed 0 answers 20 of test_ood's
+35 `crag_search` turns with `crag_stats`. On askdocs it recalls the most
+key facts so far (0.70; wrong refusals 0.05, v6 0.02), a side effect of
+calling less. Across the
+three rounds the mix of pair kinds set the call rate; v6, trained on whole
+episodes, has no such knob to get wrong. Details in
+[`results/compare-dpo3/`](results/compare-dpo3/).
 
 **Does it still answer questions?** Training a model to call tools can cost
 it its general ability. So the base and the fine-tuned 1.5B answered
