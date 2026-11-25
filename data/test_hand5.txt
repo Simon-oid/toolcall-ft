@@ -1,5 +1,5 @@
 # test_hand5 — written by Simone without seeing the v4 training data or test_hand4.
-# Format and rules: ~/studio-progetti/toolcall-ft/scheda-test_hand5.md
+# Format and rules: the one-page brief given to the author (tools, case types, labelling rules).
 # One case per line:  TYPE | request [| tool arg=value ...]
 # TYPE: C call (21), A ambiguous (14), N no tool (2), U unsupported (2)
 # Reviewed 2026-11-21 before any evaluation: line 24 reworded (contradictory), the 'models
