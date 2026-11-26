@@ -2,13 +2,13 @@
 
 Where toolcall-ft's results stop, each with the measurement behind it when
 there is one. Models ran as GGUF on llama.cpp on one machine (RX 7800 XT).
-The default model is v6; what earlier versions got wrong, and which version
+The default model is v7; what earlier versions got wrong, and which version
 fixed it, is in [`docs/results.md`](docs/results.md).
 
 ## How far the result reaches
 
-- **Three training seeds, from v2 on; one for v1.** v6's right call on
-  test_ood is 0.94 ± 0.03 over the seeds, against the 7B's 0.90. The seed
+- **Three training seeds, from v2 on; one for v1.** v7's right call on
+  test_ood is 0.96 ± 0.02 over the seeds, against the 7B's 0.90. The seed
   moves the rate about as much as the gap to the 7B, so "matches the 7B" is
   the honest claim, not "beats".
 - **Six tools, two servers, fixed.** The model was trained on these schemas
@@ -19,7 +19,8 @@ fixed it, is in [`docs/results.md`](docs/results.md).
   recovers is never tested, and neither is a model whose error compounds.
 - **Tool results are simulated.** They come from an in-memory file tree and
   corpus in the servers' formats, checked byte for byte against
-  `filesystem-mcp` on 60 episodes; `crag_search` results are not checked
+  `filesystem-mcp` on 60 episodes of `episodes.py` and 80 of `rare.py`
+  (directory sizes normalised); `crag_search` results are not checked
   against the real server.
 - **English only**, apart from two greetings in the hand-written sets.
 - **The 7B baseline is Q4_K_M, the 1.5B models are Q8_0.** Each model runs at
@@ -35,11 +36,15 @@ fixed it, is in [`docs/results.md`](docs/results.md).
 - **Most test cases come from the generator that made the training data.**
   `test_ood` and `mt_test_ood` have unseen phrasings and unseen values, but
   the generator's style. On episodes the generated test overstates the gain
-  about twice (v6: 0.86 generated, 0.44 by hand).
+  (v6: 0.86 generated, 0.44 by hand; v7: 0.84 and 0.62 on the blind set).
+  `rare.py`'s own test, `mt7_test_ood`, overstates it most: v7 0.84 against
+  v6's 0.20, where `test_hand8` moves 0.48 → 0.62.
 - **The hand-written sets are small:** 54, 48, 48, 40 and 39 single requests,
-  32 and 30 episodes. Their intervals are wide, and on `test_hand7` the 27
+  32, 30 and 43 episodes. Their intervals are wide, and on `test_hand7` the 27
   final turns with a value to report are too few for any one seed's change to
-  be significant; the seeds are summed instead.
+  be significant; the seeds are summed instead. On `test_hand8` only seed 0's
+  gain is significant on its own (p 0.013), and its eight families have 2–3
+  episodes each: a rate per family is an indication, not a measurement.
 - **Which sets are still blind.**
   - `test_hand` was read to decide what v2 should fix; `test_hand2` was
     committed before v2 was trained, `test_hand3` before v3, `test_hand4`
@@ -49,11 +54,17 @@ fixed it, is in [`docs/results.md`](docs/results.md).
     for v6 or DPO.
   - `test_hand7` was written knowing the defect it measures, though not the
     generator.
+  - `test_hand6` and `test_hand7` were both read to choose v7's new episode
+    kinds, so neither is blind for v7. `test_hand8` was written from a brief
+    and committed before `rare.py`, and stayed unread until v7's three seeds
+    were evaluated; one generator phrasing that matched it word for word was
+    reworded before training. It has now been read for v7's error analysis,
+    so a v8 needs a new set.
 - **Who wrote them.** `test_hand` to `test_hand4` were written by the author
   of the generator; they differ in style, not in who imagined the requests,
   and `test_hand4` was written together with the v4 training data. On it,
   v4's gain in abstention is two to three times what it is on `test_hand5`.
-  `test_hand5` to `test_hand7` were written from a brief by someone who had
+  `test_hand5` to `test_hand8` were written from a brief by someone who had
   not seen the generator: quote those.
 - **One `test_hand5` label was set during review.** "Find the part about
   deployment in the docs, the one with the diagram" was moved from
@@ -72,26 +83,36 @@ fixed it, is in [`docs/results.md`](docs/results.md).
   right file name without listing the folder first fails the step, even when
   the guess would have worked.
 
-## What v6, the default, still gets wrong
+## What v7, the default, still gets wrong
 
-- **The reply fix is small on hand-written episodes.** On `test_hand7` the
-  value reaches the final reply in 0.68 ± 0.11 of the turns, against 1.00 on
-  the generated episodes and the 7B's 0.70.
-- **Whole hand-written episodes do not improve.** 0.44 ± 0.04 on
-  `test_hand7`, against v5's 0.47 and the 7B's 0.47: v6 breaks about as many
-  call turns as it fixes replies.
-- **It answers right after a stat.** Told that `archive` is a directory, it
-  can say "archive exists and is empty." instead of listing it (four of the
-  six v6 and DPO-1 runs), an effect of the grounded check-then-read replies.
-- **It calls after a result that already answers.** An index with 0 chunks,
-  then "search it for deployment": it searches, in every seed, as v5 and the
-  7B do. A file already reported missing, asked about again: it calls
-  `fs_stat` on it, in every seed.
+- **Four hand-written episodes in ten.** 0.62 ± 0.01 on the blind
+  `test_hand8`, 0.56 and 0.59 on `test_hand7` and `test_hand6`.
+- **It does not retry after a miss.** After a read reports a missing file it
+  says the file does not exist instead of listing the folder; asked to search
+  the docs, it guesses a file name. It gets neither of `test_hand8`'s two
+  such episodes right in any seed, and neither do the base and the 7B. `rare.py` teaches both the retry and, when the user
+  repeats a request after a miss, stopping: the cues are close.
+- **It does not follow a reference.** After reading a file that says "see
+  ops/log-schema.json", it repeats the file instead of reading the one cited.
+  No generated episode follows a reference inside a file's text.
+- **Shapes nobody wrote data for barely move:** 0.49 → 0.56 on `test_hand8`'s
+  `new_` episodes, against 0.00 → 1.00 on read-edit-write.
+- **It reads before a write that needs no read.** "replace the contents of
+  keys.txt with: rotated" becomes `fs_read`, in all three seeds, an effect of
+  the read-edit-write episodes. "Is exports a file or a folder?" gets
+  `fs_list` instead of `fs_stat` in some seeds.
+- **Small losses against v6:** v5's generated episodes 0.86 → 0.84 (36 fixed,
+  45 broken; one seed significant), abstention on test_ood 0.98 → 0.96,
+  test_hand2 right calls 0.99 → 0.93 (0 fixed, 6 broken), and on askdocs
+  wrong refusals 0.02 → 0.07 (one seed).
+- v6's "archive exists and is empty." after a stat no longer appears, and
+  stopping when the history already answers (an index with 0 chunks, a file
+  already missing) rises from 0.00 to 0.67 of `test_hand8`'s three episodes.
 
 ## Preference tuning did not help
 
 Three DPO rounds from v5 were measured against v6
-([README](README.md#preference-tuning-three-dpo-rounds)). None is kept:
+([README](README.md#preference-tuning-three-dpo-rounds)). None was kept:
 
 - **The pairs only constrain the turns they are on.** Final-reply pairs made
   the model reply instead of calling earlier in the same episodes; call
@@ -106,9 +127,10 @@ Three DPO rounds from v5 were measured against v6
 ## Side effects of the training
 
 - **Answering from documents was checked, and held.** On askdocs' evaluation
-  questions (45 for v1–v2, 53 from v3 on) no version regresses against the base 1.5B by askdocs' gate. On
-  the latest askdocs, v6 recalls more key facts than the base (0.66 against
-  0.49) and refuses 1 answerable question in 43 (base: 9). One seed per
+  questions (45 for v1–v2, 53 from v3 on) no version regresses against the
+  base 1.5B by askdocs' gate. On the latest askdocs, v7 recalls more key
+  facts than the base (0.62 against 0.49) and refuses 3 answerable questions
+  in 43 (base: 9, v6: 1). One seed per
   version; v4 refused more than v3 (0.23 against 0.05), so caution learned
   for tool calls can carry over to answering.
 - **It is a weak answering model, like its base:** faithfulness 0.12 against
@@ -134,7 +156,7 @@ Three DPO rounds from v5 were measured against v6
 
 - **The trained model is not published.** `models/` is not in the
   repository; the GGUF has to be rebuilt with `train.py` and `export.py`
-  (v6: about 63 minutes of training on this GPU, plus a few minutes of
+  (v7: about 98 minutes of training on this GPU, plus a few minutes of
   export).
 - **The judge needs a cMCP checkout** built next to the repository, pinned by
   commit in CI.

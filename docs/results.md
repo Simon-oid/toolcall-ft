@@ -361,6 +361,73 @@ are in [`results/compare-dpo2/`](../results/compare-dpo2/) and
   fitting it to them. v6, trained on whole episodes, has no such knob and
   stays the default.
 
+## v7: the episode shapes the generator never made
+
+v6's whole hand-written episodes stayed where v5's were (0.44–0.47 on
+test_hand7). Reading test_hand6's and test_hand7's failures gave eight
+families of episode the generator never produced, and v7 adds data for them.
+- **A brief first, then a blind set.** [`data/test_hand8.txt`](../data/test_hand8.txt)
+  (43 episodes, 90 scored steps) was written by hand from a brief naming the
+  eight families and the right move in each, and committed before the
+  generator. Its labels split it into the families (`f1_`–`f8_`, 2–3
+  episodes each), shapes in none of them (`new_`, 13) and routine episodes
+  (`base_`, 13). The check that no hand-written request is in the new
+  training data reports counts only, so the set stayed unread until v7's
+  three seeds were evaluated.
+- **A second generator** ([`src/toolcall/rare.py`](../src/toolcall/rare.py)):
+  twelve kinds (folders inside folders, search then read the source, a read
+  that misses then a listing, a dead-end search, stopping when the history
+  already answers, a size from a listing, read-edit-write, listing then stat,
+  the next page of a log, a user who corrects the last call, checking a
+  write), with grounded final replies, its own seed, pools disjoint between
+  train and test, and subfolders in listings. 80 of its episodes run on the
+  real `filesystem-mcp` byte for byte (directory sizes normalised).
+- **Training.** v6's data plus 1756 `mt7_train` turns: 5132 examples, 2
+  epochs, 642 steps in 98 minutes per seed, same three seeds.
+
+| 3 seeds, mean ± sd | base 1.5B | 7B | v6 | v7 | fixed / broken, pooled |
+|---|---|---|---|---|---|
+| episodes right, test_hand8 (blind) | 0.30 | 0.42 | 0.48 ± 0.07 | **0.62 ± 0.01** | 25 / 7 |
+| right call inside an episode, test_hand8 | | | 0.72 ± 0.04 | 0.81 ± 0.02 | 16 / 4 |
+| no call when none is due, test_hand8 | | | 0.78 ± 0.05 | 0.86 ± 0.02 | 16 / 5 |
+| final reply carries the value, test_hand8 | | | 0.66 ± 0.08 | 0.72 ± 0.02 | 16 / 9 |
+| episodes right, test_hand7 | 0.23 | 0.47 | 0.44 ± 0.04 | 0.56 ± 0.02 | 14 / 4 |
+| episodes right, test_hand6 | 0.22 | 0.44 | 0.45 ± 0.08 | 0.59 ± 0.05 | 20 / 6 |
+| episodes right, `mt7_test_ood` (generated) | 0.13 | 0.30 | 0.20 ± 0.03 | 0.84 ± 0.03 | 463 / 4 |
+| episodes right, `mt_test_ood` (v5's generated) | 0.27 | 0.66 | 0.86 ± 0.02 | 0.84 ± 0.06 | 36 / 45 |
+| right call, single-turn test_ood | 0.70 | 0.90 | 0.94 ± 0.03 | 0.96 ± 0.02 | 16 / 6 |
+| abstains when it should, test_ood | 0.55 | 0.60 | 0.98 ± 0.01 | 0.96 ± 0.01 | 1 / 6 |
+| right call, test_hand2 | | | 0.99 ± 0.02 | 0.93 ± 0.02 | 0 / 6 |
+
+By family on test_hand8 (episodes right, v6 → v7, three seeds pooled):
+
+| read-edit-write | stop when the history answers | write then check | long chains | retry after a miss | pages | listing then stat | corrections | `new_` | `base_` |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.00 → 1.00 | 0.00 → 0.67 | 0.83 → 1.00 | 0.00 → 0.17 | 0.00 → 0.00 | 0.33 → 0.17 | 0.83 → 0.67 | 0.50 → 0.50 | 0.49 → 0.56 | 0.72 → 0.79 |
+
+Per-seed tests and the failures are in
+[`results/compare-v6-v7/`](../results/compare-v6-v7/).
+- **Whole episodes move on every hand-written set.** +0.14 on the blind
+  test_hand8, +0.12 on test_hand7, +0.14 on test_hand6, in every seed, and
+  above the 7B on all three. Only seed 0 is significant alone on test_hand8
+  (p 0.013); the other two point the same way (8 / 3, 5 / 2).
+- **The gain is where the data was.** Read-edit-write and stopping when the
+  history already answers go from never to mostly right. Shapes nobody wrote
+  data for move 0.49 → 0.56.
+- **Retry after a miss is not learned** by any model measured. After a read
+  reports a missing file, v7 says it does not exist instead of listing the
+  folder; asked to search the docs for a setting, it guesses a file name
+  (`wal_mode.txt`). The generator teaches both the retry and, when the user
+  repeats a request after a miss, stopping, and the cues are close.
+- **A new habit, from read-edit-write.** "replace the contents of keys.txt
+  with: rotated" becomes `fs_read keys.txt` in all three seeds, where v6
+  wrote it; "is exports a file or a folder?" gets `fs_list` in some seeds.
+  These are most of test_hand2's 6 broken calls. v6's "archive exists and is
+  empty." after a stat no longer appears.
+- **The generated test overstates the gain most.** On `rare.py`'s own
+  held-out phrasings episodes right go 0.20 → 0.84; on the blind hand-written
+  set 0.48 → 0.62.
+
 ## Answering documents: askdocs
 
 Training a model to call tools can cost
@@ -422,6 +489,13 @@ and recalls more key facts than the base (+0.17 [+0.05, +0.31]). DPO 1's
 faithfulness is the lowest, within the gate's noise. DPO 3 recalls the most
 key facts (+0.21 [+0.09, +0.34]), a side effect of calling less. One seed
 each.
+
+**v7 on askdocs.** Same base run, seed 0, 2026-11-26
+([`results/askdocs-forgetting-v7/`](../results/askdocs-forgetting-v7/)):
+key-fact recall 0.62 (v6 0.66), wrong refusals 0.07 (v6 0.02), correct
+refusals 0.90 (one unanswerable question answered), faithfulness 0.75 (v6
+0.85). The gate against the base flags nothing (key facts +0.13 [+0.02,
++0.25]); against v6 every metric slips, each within one seed's interval.
 
 **As askdocs' answering model.** The same run compares the fine-tuned model
 with the 3B that askdocs uses by default

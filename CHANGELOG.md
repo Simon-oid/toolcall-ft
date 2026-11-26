@@ -4,6 +4,20 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+### v7: the rarer episode shapes, three seeds
+
+- v7 = v6's recipe plus `rare.py`'s episodes (`train.py --multistep
+  --grounded --rare`), three seeds, and the new sets for the base 1.5B, the
+  7B and v6. Episodes right on the blind `test_hand8` 0.48 → 0.62 (25 fixed,
+  7 broken; 7B 0.42), on `test_hand7` 0.44 → 0.56 and `test_hand6` 0.45 →
+  0.59, in every seed; on `mt7_test_ood` 0.20 → 0.84. Read-edit-write and
+  stopping when the history answers are learned; retrying after a miss is
+  not, by any model. Costs: v5's generated episodes 0.86 → 0.84, test_ood
+  abstention 0.98 → 0.96, test_hand2 right calls 0.99 → 0.93 (a dictated
+  overwrite is read first), askdocs wrong refusals 0.02 → 0.07 (one seed,
+  gate against the base ok). v7 becomes the default.
+  `results/compare-v6-v7/`, `results/askdocs-forgetting-v7/`.
+
 ### v7 data: the episode shapes the generator never produced
 
 - `test_hand8` (43 hand-written episodes, 90 scored steps), committed before

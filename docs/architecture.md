@@ -155,8 +155,8 @@ returned. An episode is right when all its turns are.
   single-turn ones. No live server is needed at evaluation.
 - **Costs:** teacher forcing never shows the model its own mistakes, so
   recovery and compounding errors go unmeasured. The results are simulated:
-  a test checks `filesystem-mcp`'s byte for byte on 60 episodes, but not
-  `crag_search`'s.
+  a test checks `filesystem-mcp`'s byte for byte on 60 episodes (and 80 of
+  `rare.py`'s), but not `crag_search`'s.
 - **The training targets are the same turns.** The history renders exactly
   as the training completion does (`<tool_call>…</tool_call>` in the chat
   template), so what the model wrote in one turn is what it reads in the
@@ -178,7 +178,8 @@ use the targets, not in what the targets say.
   pairs (the training reply over an unneeded call) and stopped calling, in
   proportion to the ratio of abstain to call pairs. The mix of pair kinds
   becomes a knob that sets the call rate. SFT on whole episodes (v6) has no
-  such knob, which is why it is the default.
+  such knob, which is why v6 was kept over DPO; v7 is v6's recipe with more
+  episode kinds.
 - **Rejected sides are sampled when greedy is too right.** On its own
   training data a model is almost never wrong greedy (round-1 DPO: 24 of
   2254 call turns), so `sample.py` draws 4 samples at temperature 1 and
@@ -213,6 +214,17 @@ python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/
 llama-server -m models/ft-v6-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
 python -m toolcall.evaluate --name mtg-ft-v6-free  --model Qwen/Qwen2.5-1.5B-Instruct --splits mt_test_id_g,mt_test_ood_g
 python -m toolcall.evaluate --name hand7-ft-v6-free --model Qwen/Qwen2.5-1.5B-Instruct --splits test_hand7
+```
+
+v7, the default: v6's recipe plus `rare.py`'s episode kinds, and its sets:
+
+```sh
+python -m toolcall.rare                       # data/mt7_*.jsonl
+python -m toolcall.train    --model Qwen/Qwen2.5-1.5B-Instruct --out models/ft-v7 --multistep --grounded --rare
+python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/ft-v7
+llama-server -m models/ft-v7-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
+python -m toolcall.evaluate --name mt7-ft-v7-free   --model Qwen/Qwen2.5-1.5B-Instruct --splits mt7_test_id,mt7_test_ood
+python -m toolcall.evaluate --name hand8-ft-v7-free --model Qwen/Qwen2.5-1.5B-Instruct --splits test_hand8
 ```
 
 DPO from v5 (`models/ft-v5`, trained with `--multistep`), round 1; rounds 2

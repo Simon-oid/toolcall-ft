@@ -25,8 +25,9 @@ servers, and judges every call with the same code those servers run.
 
 **After LoRA fine-tuning, the 1.5B model makes the right single call as often
 as the 7B and a hosted 120B, and knows much better when not to call. On
-conversations that chain several calls, it matches the 7B on hand-written
-episodes, and no more.**
+conversations that chain several calls it gets more hand-written episodes
+right than the 7B (0.62 against 0.42 on the blind set), and still fails
+nearly four in ten.**
 
 | one request, one call | right call, held-out phrasings | right call, hand-written (2 sets) | abstains when it should, held-out |
 |---|---|---|---|
@@ -37,15 +38,17 @@ episodes, and no more.**
 | v3 | **0.96 ± 0.01** | 0.95 ± 0.03 · 0.92 ± 0.05 | 0.94 ± 0.04 |
 | v4 | 0.95 ± 0.01 | 0.91 ± 0.03 · 0.96 ± 0.02 | 0.99 ± 0.01 |
 | v5 (+ multi-step) | 0.94 ± 0.04 | 0.93 ± 0.04 · 0.96 ± 0.05 | **1.00 ± 0.01** |
-| **v6** (+ grounded replies), the default | 0.94 ± 0.03 | **0.96 ± 0.02 · 0.99 ± 0.02** | 0.98 ± 0.01 |
+| v6 (+ grounded replies) | 0.94 ± 0.03 | 0.96 ± 0.02 · **0.99 ± 0.02** | 0.98 ± 0.01 |
+| **v7** (+ rarer episode shapes), the default | **0.96 ± 0.02** | **0.98 ± 0.01** · 0.93 ± 0.02 | 0.96 ± 0.01 |
 
-| episodes right (several turns) | generated, held-out phrasings | by hand, set 1 (32 episodes) | by hand, set 2 (30, blind) |
-|---|---|---|---|
-| Qwen2.5-1.5B base | 0.27 | 0.22 | 0.23 |
-| Qwen2.5-7B base | 0.66 | 0.44 | 0.47 |
-| v4 (single-turn only) | 0.35 ± 0.03 | 0.25 ± 0.03 | |
-| v5 | **0.90 ± 0.03** | 0.40 ± 0.07 | 0.47 ± 0.03 |
-| **v6**, the default | 0.86 ± 0.02 | 0.45 ± 0.08 | 0.44 ± 0.04 |
+| episodes right (several turns) | generated, held-out phrasings | by hand, set 1 (32 episodes) | by hand, set 2 (30) | by hand, set 3 (43, blind) |
+|---|---|---|---|---|
+| Qwen2.5-1.5B base | 0.27 | 0.22 | 0.23 | 0.30 |
+| Qwen2.5-7B base | 0.66 | 0.44 | 0.47 | 0.42 |
+| v4 (single-turn only) | 0.35 ± 0.03 | 0.25 ± 0.03 | | |
+| v5 | **0.90 ± 0.03** | 0.40 ± 0.07 | 0.47 ± 0.03 | |
+| v6 | 0.86 ± 0.02 | 0.45 ± 0.08 | 0.44 ± 0.04 | 0.48 ± 0.07 |
+| **v7**, the default | 0.84 ± 0.06 | **0.59 ± 0.05** | **0.56 ± 0.02** | **0.62 ± 0.01** |
 
 How these were measured:
 - the Qwen models run as GGUF on llama.cpp, free greedy decoding;
@@ -58,17 +61,24 @@ How these were measured:
 
 **What it found.**
 - **Fine-tuning closes the gap on single calls.** Right calls on held-out
-  phrasings go from 0.70 to 0.94, level with the 7B and the 120B, and the
-  model abstains on 0.98 of the requests that need no tool, against 0.60 and
+  phrasings go from 0.70 to 0.96, level with the 7B and the 120B, and the
+  model abstains on 0.96 of the requests that need no tool, against 0.60 and
   0.79 for them.
-- **Generated tests overstate the gain, about twice.** v6 gets 0.86 of the
-  generated episodes right and 0.44 of the hand-written ones, where the 7B
-  is. The model learns the generator's style, which is why the hand-written
-  sets exist.
+- **Generated tests overstate the gain.** v6 got 0.86 of the generated
+  episodes right and 0.44 of the hand-written ones, where the 7B is; v7 gets
+  0.84 and 0.62. The model learns the generator's style, which is why the
+  hand-written sets exist.
+- **Data aimed at the failures moved hand-written episodes, but not past
+  them.** v7 adds episode shapes the generator never made (long chains,
+  read-edit-write, paging, corrections), and episodes right rise by
+  0.12–0.14 on all three hand-written sets. On shapes nobody wrote data for
+  it moves 0.49 → 0.56, and retrying after a call that misses stays at 0 for
+  every model measured.
 - **The data decides the behaviour, and each fix moves something else.** v3's
   extra calls cost abstention on ambiguous requests; v4's caution cost a
   little precision; v5 learned the generator's terse final replies, and v6
-  fixed those by changing the targets.
+  fixed those by changing the targets; v7 learned to read before editing,
+  and now reads first even when the whole new content is dictated.
 - **A grammar guarantees the form, not the content.** llama.cpp's
   schema-derived grammar dropped `limit` from 20 of the 7B's 24 line-range
   reads, and constraining the whole reply removed the choice not to call.
@@ -77,8 +87,8 @@ How these were measured:
   pairs made it call everywhere, and abstain pairs made it stop calling. None
   beat v6 ([below](#preference-tuning-three-dpo-rounds)).
 - **It still answers from documents.** On [askdocs](https://github.com/Simon-oid/askdocs)' eval no
-  version regresses against the base, and v6 almost never refuses an
-  answerable question (0.02).
+  version regresses against the base, and v6 and v7 rarely refuse an
+  answerable question (0.02 and 0.07, base 0.21).
 
 Every number comes from a committed run, with its hardware and date. The
 version-by-version record, with paired tests and failures, is in
@@ -121,7 +131,11 @@ search, "how big is it?" after a read. Each tool result is rendered in the real
 server's format, and a test checks 60 episodes byte for byte against
 `filesystem-mcp`. A call turn is scored on the four levels. A final turn must
 make no call, and its reply must carry the value the tool returned. An episode
-is right only if every turn is.
+is right only if every turn is. v7's rarer shapes come from a second
+generator, [`src/toolcall/rare.py`](src/toolcall/rare.py): folders inside
+folders, a retry after a miss, a dead-end search, stopping when the history
+already answers, read-edit-write, paging through a log, a user who corrects
+the last call; 80 of its episodes are checked against `filesystem-mcp` too.
 
 ## The dataset
 
@@ -136,6 +150,8 @@ Generated from intents × phrasing families × slot values, with a fixed seed
 | test_ood | 294 (189 calls, 105 no-call) | families 6–7, held out | test pools |
 | mt_train, mt_val: episode turns, v5 on | 1409, 155 | families 0–5 | train pools |
 | mt_test_id, mt_test_ood: episode turns | 270, 452 | 0–5; held out | test pools |
+| mt7_train, mt7_val: rarer episode turns, v7 | 1756, 187 | `rare.py`'s own | train pools |
+| mt7_test_id, mt7_test_ood | 334, 558 | own; held out | test pools |
 
 `test_id` asks whether the model learned the task or memorised the names.
 `test_ood` asks whether it learned the task or memorised the phrasings. Each
@@ -159,14 +175,14 @@ cases they are:
 - **`no_tool`:** the base model's own answer, generated before training, so
   training teaches *when* to call without rewriting how the model talks.
 
-**Hand-written sets.** Generated tests share the generator's style, so seven
+**Hand-written sets.** Generated tests share the generator's style, so eight
 sets were written by hand: [`test_hand`](data/test_hand.jsonl) to
 [`test_hand5`](data/test_hand5.txt) (54, 48, 48, 40 and 39 single requests),
-and [`test_hand6`](data/test_hand6.txt) and [`test_hand7`](data/test_hand7.txt)
-(32 and 30 episodes). From `test_hand2` on, each was committed before the
-version it measures was trained. `test_hand5` to `test_hand7` were written
-from a brief by someone who had not seen the generator, and they are the
-numbers to quote. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md#the-test-sets)
+and [`test_hand6`](data/test_hand6.txt) to [`test_hand8`](data/test_hand8.txt)
+(32, 30 and 43 episodes). From `test_hand2` on, each was committed before the
+version it measures was trained; `test_hand8` also before the generator of
+v7's data. `test_hand5` to `test_hand8` were written from a brief by someone
+who had not seen the generator, and they are the numbers to quote. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md#the-test-sets)
 says which sets stopped being blind, and why.
 
 ## Baselines
@@ -244,7 +260,8 @@ test_ood, by kind:
 **The recipe** ([`src/toolcall/train.py`](src/toolcall/train.py)):
 - Qwen2.5-1.5B-Instruct, LoRA r=16 (α 32) on all linear layers, bf16.
 - 2 epochs, effective batch 16, lr 2e-4 cosine: 192 steps in 26 minutes on
-  the RX 7800 XT for v1, 422 steps in 63 minutes for v5.
+  the RX 7800 XT for v1, 422 steps in 63 minutes for v5, 642 in 98 minutes
+  for v7.
 - The prompt is rendered exactly as at evaluation, and the loss is on the
   completion only.
 - Three training seeds from v2 on, the same three for every version, compared
@@ -267,13 +284,18 @@ the failures of the one before. Details and paired tests are in
 | v4 | 140 ambiguous requests answered with a question | abstention 0.94 → 0.99; independent test_hand5 0.80 → 0.89 | right call 0.96 → 0.95: details dropped on clear requests |
 | v5 | 1409 episode turns, ten kinds | episodes right: generated 0.35 → 0.90, test_hand6 0.25 → 0.40; calls inside an episode 0.36 → 0.68 | final replies leave out the value the user asked for |
 | v6 | final replies that carry the value (231 episodes change) | value in the final reply: generated 0.51 → 1.00, blind test_hand7 0.59 → 0.68 | episodes on test_hand7 0.47 → 0.44 |
+| v7 | 1756 episode turns in twelve rarer shapes (`rare.py`) | episodes right: blind test_hand8 0.48 → 0.62 (25 fixed, 7 broken), test_hand7 0.44 → 0.56, test_hand6 0.45 → 0.59 | v5's generated episodes 0.86 → 0.84; "replace the contents of keys.txt with: rotated" read instead of written; askdocs wrong refusals 0.02 → 0.07 |
 
-**Why v6 is the default.** It keeps v5's single-turn results, has the best
-final replies on generated episodes and the fewest wrong refusals on askdocs,
-and none of the DPO variants below does better overall. One new mistake came
-with the grounded replies: told that `archive` is a directory, four of the
-six v6 and DPO-1 runs answer "archive exists and is empty." instead of
-listing it.
+**Why v7 is the default.** It raises whole hand-written episodes on all three
+sets and in every seed, by 0.12–0.14 where v6 and DPO moved them by at most
+0.06, and it is above the 7B on the blind one; single-turn calls hold
+(test_ood 0.94 → 0.96). What it costs is small and mostly within the seeds'
+noise: two points on v5's generated episodes and on abstention, a slip on
+askdocs against v6 (still ahead of the base), and one new habit from its
+read-edit-write episodes: told to replace a file's contents with a dictated
+line, it reads the file first, in all three seeds. v6's "archive exists and is
+empty." after a stat is gone. Analysis:
+[`results/compare-v6-v7/NOTES.md`](results/compare-v6-v7/NOTES.md).
 
 ## Preference tuning: three DPO rounds
 
@@ -324,18 +346,21 @@ version answered [askdocs](https://github.com/Simon-oid/askdocs)' 53
 evaluation questions (43 answerable, 10 to refuse), which need grounded,
 cited answers and no tool calls, with the same retrieval, and a 7B judged
 faithfulness. These runs share one
-askdocs version and one base run, seed 0 of each model, 2026-11-22 to 11-25
-([`results/askdocs-forgetting-v6/`](results/askdocs-forgetting-v6/)):
+askdocs version and one base run, seed 0 of each model, 2026-11-22 to 11-26
+([`results/askdocs-forgetting-v6/`](results/askdocs-forgetting-v6/),
+[`results/askdocs-forgetting-v7/`](results/askdocs-forgetting-v7/)):
 
-| askdocs eval | base 1.5B | v5 | **v6** | DPO 1 | DPO 2 | DPO 3 |
-|---|---|---|---|---|---|---|
-| key-fact recall | 0.49 | 0.55 | 0.66 | 0.56 | 0.53 | **0.70** |
-| wrong refusals | 0.21 | 0.16 | **0.02** | 0.19 | 0.16 | 0.05 |
-| faithfulness | 0.79 | **0.89** | 0.85 | 0.72 | 0.88 | 0.81 |
+| askdocs eval | base 1.5B | v5 | v6 | DPO 1 | DPO 2 | DPO 3 | **v7** |
+|---|---|---|---|---|---|---|---|
+| key-fact recall | 0.49 | 0.55 | 0.66 | 0.56 | 0.53 | **0.70** | 0.62 |
+| wrong refusals | 0.21 | 0.16 | **0.02** | 0.19 | 0.16 | 0.05 | 0.07 |
+| faithfulness | 0.79 | **0.89** | 0.85 | 0.72 | 0.88 | 0.81 | 0.75 |
 
 askdocs' regression gate flags no version. v6 recalls more key facts than
-the base (+0.17 [+0.05, +0.31]) and refuses 1 answerable question in 43.
-DPO 3 recalls the most, a side effect of calling less. Earlier versions were
+the base (+0.17 [+0.05, +0.31]) and refuses 1 answerable question in 43;
+v7 recalls +0.13 [+0.02, +0.25] over the base, refuses 3 in 43, and answers
+one of the 10 it should refuse. DPO 3 recalls the most, a side effect of
+calling less. Earlier versions were
 measured with an older askdocs and are not comparable to this table; they
 are in [`docs/results.md`](docs/results.md#answering-documents-askdocs). With
 one seed per version, these are signals, not measurements.
@@ -348,12 +373,12 @@ calling.
 
 ## Limits
 
-Three training seeds for v2 to v6 and for DPO, one for v1; askdocs on one
+Three training seeds for v2 to v7 and for DPO, one for v1; askdocs on one
 seed of each. Six fixed tools, English only. Episodes are scored with the
 right history before each turn, so a model that recovers from its own
 mistake is never tested. The hand-written sets are small: test_hand7 has 27
 final turns with a value to report, too few for one seed's change to be
-significant. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the full
+significant, and `test_hand8`'s eight families have 2–3 episodes each. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) has the full
 list, and [`docs/architecture.md`](docs/architecture.md) the design
 decisions behind the measurement.
 

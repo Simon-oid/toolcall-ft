@@ -69,6 +69,12 @@ routine episodes, not on shapes nobody wrote training data for.
 
 ## What it costs
 
+- A new habit from the read-edit-write episodes: "replace the contents of keys.txt with:
+  rotated" (`test_hand2`) becomes `fs_read keys.txt` in all three seeds, where v6 wrote it,
+  and "is exports a file or a folder?" gets `fs_list` instead of `fs_stat` in some seeds. They
+  are 4 of `test_hand2`'s 6 broken calls (0.99 → 0.93, 0 fixed). v6's "archive exists and is
+  empty." after a stat appears in no v7 run.
+
 - `mt_test_ood` (v5/v6's generated episodes): episodes right 0.86 → 0.84, 36 fixed / 45 broken;
   seed 0 alone loses calls (15 fixed / 29 broken, p 0.049), seeds 1 and 2 do not.
 - Single requests: calls right on `test_ood` 0.94 → 0.96 (16 / 6), abstains when it should
