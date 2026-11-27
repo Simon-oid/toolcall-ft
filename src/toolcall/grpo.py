@@ -66,15 +66,22 @@ def hard_ids(sampled: Path) -> set[str]:
     return {r["id"] for r in rows if not right(r) and not GARBAGE.match(r["reply"])}
 
 
-def prompts_and_cases(splits: list[str], limit: int | None = None, seed: int = 20261110,
-                      hard_from: Path | None = None) -> list[dict]:
-    tools = load_tools()
+def select_cases(splits: list[str], limit: int | None = None, seed: int = 20261110,
+                 hard_from: Path | None = None) -> list[dict]:
+    """The training turns, shuffled, cut to --limit, then to the hard ones."""
     cases = [c for s in splits for c in load(s)]
     random.Random(seed).shuffle(cases)
     cases = cases[:limit] if limit else cases
     if hard_from is not None:
         hard = hard_ids(hard_from)
         cases = [c for c in cases if c["id"] in hard]
+    return cases
+
+
+def prompts_and_cases(splits: list[str], limit: int | None = None, seed: int = 20261110,
+                      hard_from: Path | None = None) -> list[dict]:
+    tools = load_tools()
+    cases = select_cases(splits, limit, seed, hard_from)
     return [{"prompt": render_case(c, TEMPLATE_MODEL, tools),
              "case": json.dumps(c, ensure_ascii=False)} for c in cases]
 

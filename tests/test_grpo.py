@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
-from toolcall.grpo import PARTIAL, case_rewards, prompts_and_cases
+import pytest
+
+from toolcall.grpo import PARTIAL, case_rewards, prompts_and_cases, select_cases
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 
@@ -54,6 +56,7 @@ def test_final_reply_needs_the_fact():
 
 
 def test_dataset_rows_carry_their_case():
+    pytest.importorskip("transformers")    # the prompt is rendered by the chat template
     rows = prompts_and_cases(["train"], limit=3)
     assert len(rows) == 3
     for r in rows:
@@ -62,8 +65,7 @@ def test_dataset_rows_carry_their_case():
 
 
 def test_hard_from_keeps_only_turns_with_a_wrong_sample(tmp_path):
-    rows = prompts_and_cases(["train"], limit=4)
-    ids = [json.loads(r["case"])["id"] for r in rows]
+    ids = [c["id"] for c in select_cases(["train"], limit=4)]
     sampled = tmp_path / "results.jsonl"
     sampled.write_text("".join(json.dumps({"id": i, "reply": "x", "score": s}) + "\n"
                                for i, s in zip(ids, [
@@ -71,14 +73,13 @@ def test_hard_from_keeps_only_turns_with_a_wrong_sample(tmp_path):
                                    {"levels": {"args": True}, "abstained_ok": None},
                                    {"levels": None, "abstained_ok": False},
                                    {"levels": None, "abstained_ok": True}], strict=True)))
-    kept = prompts_and_cases(["train"], limit=4, hard_from=sampled)
-    assert [json.loads(r["case"])["id"] for r in kept] == [ids[0], ids[2]]
+    kept = select_cases(["train"], limit=4, hard_from=sampled)
+    assert [c["id"] for c in kept] == [ids[0], ids[2]]
 
 
 def test_hard_from_ignores_server_garbage(tmp_path):
-    rows = prompts_and_cases(["train"], limit=1)
-    i = json.loads(rows[0]["case"])["id"]
+    i = select_cases(["train"], limit=1)[0]["id"]
     sampled = tmp_path / "results.jsonl"
     sampled.write_text(json.dumps({"id": i, "reply": "!" * 40,
                                    "score": {"levels": {"args": False}, "abstained_ok": None}}))
-    assert prompts_and_cases(["train"], limit=1, hard_from=sampled) == []
+    assert select_cases(["train"], limit=1, hard_from=sampled) == []
