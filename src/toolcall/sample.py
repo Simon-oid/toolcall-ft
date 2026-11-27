@@ -13,7 +13,9 @@ by the same scorer and judge as evaluate.py. A turn with no wrong sample
 keeps its first sample, which prefs.py then skips. With --abstain the turns
 are those that need no call and are not a final reply after a tool result
 (single requests, and episode turns where the user spoke last), and a
-mistake is a reply that does not abstain. Writes results/<name>/results.jsonl
+mistake is a reply that does not abstain. With --all every turn is sampled,
+final replies included (a final reply that drops the fact is a mistake): the
+hard turns grpo.py --hard-from trains on. Writes results/<name>/results.jsonl
 in evaluate's row format.
 """
 
@@ -31,10 +33,12 @@ from .prompt import load_tools, render_case
 
 
 def right(row: dict) -> bool:
-    """Right at level 4 on a call turn; abstained on a turn that needs no call."""
+    """Right at level 4 on a call turn; abstained on a turn that needs no call,
+    and, on a final reply, carrying the fact the tool returned (as
+    evaluate.step_right)."""
     s = row["score"]
     if s.get("abstained_ok") is not None:
-        return bool(s["abstained_ok"])
+        return bool(s["abstained_ok"]) and s.get("answered") is not False
     return bool(s["levels"]["args"])
 
 
@@ -63,13 +67,18 @@ def main() -> int:
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--url", default="http://127.0.0.1:8083")
     ap.add_argument("--abstain", action="store_true", help="sample the turns that need no call")
+    ap.add_argument("--all", action="store_true", help="sample every turn (grpo.py --hard-from)")
     args = ap.parse_args()
+    if args.abstain and args.all:
+        raise SystemExit("--abstain and --all exclude each other")
     if args.temperature <= 0:
         raise SystemExit("--temperature must be > 0: greedy gives one answer per turn")
     tools = load_tools()
     keep = abstain_turn if args.abstain else (lambda r: r["expected"] is not None)
+    if args.all:
+        keep = lambda r: True  # noqa: E731
     cases = [r for s in args.splits.split(",") for r in load(s) if keep(r)]
-    what = "no-call turns" if args.abstain else "call turns"
+    what = "turns" if args.all else "no-call turns" if args.abstain else "call turns"
     prompts = [render_case(c, args.model, tools) for c in cases]
     per_seed = []
     for seed in range(args.n):

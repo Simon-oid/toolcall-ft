@@ -1,4 +1,4 @@
-from toolcall.sample import first_wrong
+from toolcall.sample import first_wrong, right
 
 
 def s(reply, right):
@@ -28,3 +28,15 @@ def test_first_wrong_on_abstain_turns_takes_the_first_unneeded_call():
 
 def test_first_wrong_on_abstain_turns_keeps_the_first_when_all_abstain():
     assert first_wrong([a("one", True), a("two", True)])["reply"] == "one"
+
+
+def f(reply, answered):
+    return {"reply": reply, "score": {"levels": None, "abstained_ok": True, "answered": answered}}
+
+
+def test_final_reply_without_the_fact_is_a_mistake():
+    assert first_wrong([f("Done.", True), f("Saved.", False)])["reply"] == "Saved."
+
+
+def test_abstain_turns_without_an_answer_rule_stay_right():
+    assert right(f("Hello!", None))
