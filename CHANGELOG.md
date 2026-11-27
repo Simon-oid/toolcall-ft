@@ -4,6 +4,21 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+### GRPO from v7, three seeds
+
+- `grpo.py`: TRL's GRPOTrainer from a merged SFT model (a new LoRA, KL to
+  the start). The reward is the evaluation's scorer and judge (1 right
+  step, 0.5 schema-valid but wrong call, 0 otherwise). `--hard-from`
+  trains only on the turns where a sample of the start model was wrong.
+  `sample.py --all` samples every turn, and now counts a final reply
+  without the fact as a mistake.
+- On all of v7's training turns, 47 of 48 groups had no reward spread. On
+  the hard turns (67, 78 and 60 per seed, mostly listing-then-stat) GRPO
+  stays within noise of v7 on every set and breaks nothing: `test_hand8`
+  episodes 0.62 → 0.65 (4 fixed, 0 broken), askdocs key facts 0.62 → 0.61.
+  Retry after a miss stays at 0. v7 stays the default.
+  `results/compare-v7-grpo/`, `results/askdocs-forgetting-grpo/`.
+
 ### v7: the rarer episode shapes, three seeds
 
 - v7 = v6's recipe plus `rare.py`'s episodes (`train.py --multistep

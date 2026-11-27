@@ -121,8 +121,14 @@ Three DPO rounds from v5 were measured against v6
   (calls inside generated episodes 0.59, 0.68 and 0.02 by seed).
 - **The ratio of pair kinds sets the call rate,** and no mix tried kept v5's
   calls. Tuning the ratio against the test sets would fit it to them, so it
-  was not done. Other preference methods (a supervised term on the chosen
-  side, GRPO with the judge as reward) were not tried.
+  was not done. A supervised term on the chosen side was not tried.
+- **GRPO from v7 changed little** ([notes](results/compare-v7-grpo/NOTES.md)).
+  With the evaluation's metric as reward it broke nothing, but no change
+  was significant (`test_hand8` episodes 0.62 → 0.65). v7 is right on
+  98.5% of its own training turns even when sampled, so only 60–78 turns
+  per seed give a learning signal. The failure GRPO was meant for, retrying
+  after a miss, is not among them. Training on it needs new prompts where
+  v7 fails, and a new blind set to judge them.
 
 ## Side effects of the training
 

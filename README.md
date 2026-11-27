@@ -339,6 +339,29 @@ Per-seed tables and paired tests are in
 [`results/compare-dpo2/`](results/compare-dpo2/) and
 [`results/compare-dpo3/`](results/compare-dpo3/).
 
+### GRPO from v7, with the metric as reward
+
+[`grpo.py`](src/toolcall/grpo.py) runs TRL's GRPOTrainer from v7 (KL to
+v7, 8 replies per prompt). The reward is the evaluation's scorer and C
+judge: 1 for a right step, 0.5 for a call that passes the schema but is
+wrong, 0 otherwise.
+
+- **On its own training data v7 leaves almost nothing to learn.** In a
+  smoke over all 5132 training turns, 47 of 48 groups had 8 replies with
+  the same reward, which gives GRPO no gradient. A full epoch would be
+  ~12 GPU hours for about a hundred useful prompts.
+- **So it trains only on the turns v7 gets wrong when sampled** (4
+  samples at temperature 1, `sample.py --all`): 67, 78 and 60 turns per
+  seed, 1.2–1.5% of the data, mostly listing-then-stat. That is 16–20
+  steps, under 25 minutes a seed.
+- **Result: within noise of v7 on every set, and nothing breaks.**
+  `test_hand8` episodes 0.62 → 0.65 (4 fixed, 0 broken over three seeds,
+  a different episode in each; the set is no longer blind), test_ood
+  unchanged, askdocs unchanged. Retry after a miss stays at 0: v7 does
+  not fail it on its training data, so no reward ever separates the
+  replies there. v7 stays the default.
+  [`results/compare-v7-grpo/NOTES.md`](results/compare-v7-grpo/NOTES.md).
+
 ## Does it still answer questions?
 
 Training a model to call tools can cost it its general ability. So each
@@ -373,7 +396,7 @@ calling.
 
 ## Limits
 
-Three training seeds for v2 to v7 and for DPO, one for v1; askdocs on one
+Three training seeds for v2 to v7, for DPO and for GRPO, one for v1; askdocs on one
 seed of each. Six fixed tools, English only. Episodes are scored with the
 right history before each turn, so a model that recovers from its own
 mistake is never tested. The hand-written sets are small: test_hand7 has 27

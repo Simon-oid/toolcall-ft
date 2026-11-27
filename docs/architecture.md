@@ -189,6 +189,23 @@ use the targets, not in what the targets say.
   and the reference is the same weights with the adapter off, so the KL term
   keeps DPO near v5, not near the base model.
 
+### 11. GRPO's reward is the evaluation's scorer, on the turns the model gets wrong
+
+`grpo.py` scores every sampled reply with `score_cases`, the same scorer
+and C judge as `evaluate.py`. A step that is right earns 1, a call that
+passes the tool's schema but is wrong earns 0.5, and anything else earns 0.
+
+- **Buys:** the reward cannot drift from the metric, and no reward model
+  needs training or trusting.
+- **Costs:** a reward that is the training target's own check is saturated
+  on the training data. v7 sampled at temperature 1 is right on 98.5% of
+  its training turns, so almost every group of 8 replies scores the same
+  and gives no gradient. `--hard-from` keeps only the turns where a sample
+  was wrong (`sample.py --all`): 60–78 per seed. The behaviours v7 fails
+  only on new episodes are never among them.
+- **Generation is per micro-batch** (`steps_per_generation=1`): generating
+  a whole step's 64 replies at once runs a 16 GB card out of memory.
+
 ## Reproducing
 
 ```sh
