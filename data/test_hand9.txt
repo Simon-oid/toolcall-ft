@@ -1,0 +1,401 @@
+# test_hand9: hand-written episodes on retrying after a miss, and on stopping.
+# Written by hand by Simone on 2026-11-28, from scheda-test_hand9.md. The author knew
+# v7's defect (it gives up or guesses after a miss; described in the brief) but had
+# not seen the generator, its new episode kinds or any v8 result. Frozen once committed.
+# Label prefixes: r1_..r5_ = retry kinds (part A); stop_ = the history already answers
+# (part B; stop_X pairs with r*_X); new_ = shapes in neither (part C); base_ = routine
+# episodes v7 already handles (part D).
+# Format: src/toolcall/handset_mt.py. One message per line, blank line between episodes:
+#   E | label   U | user   c | history call   s | history reply
+#   C | scored call   r | tool result (\n = newline)   A | facts the final reply must contain
+# A is checked by substring (case-insensitive); any: accepts one of several phrases.
+
+# ======== PARTE A: RITENTARE (r1_..r5_) ========
+
+E | r1_greenhouse_cal
+U | Check the frost warning threshold in greenhouse/sensor_cal.csv.
+C | fs_read path=greenhouse/sensor_cal.csv
+r | error: no such file or directory
+C | fs_list path=greenhouse
+r | file  310  calibration_v2.csv\nfile  140  irrigation.txt
+C | fs_read path=greenhouse/calibration_v2.csv
+r | metric,warn_below,unit\nfrost_temp,2.5,C\nhumidity,35,pct
+A | 2.5
+
+E | r1_deploy_env
+U | When was ops/cmcp.env last modified?
+C | fs_stat path=ops/cmcp.env
+r | error: no such file or directory
+C | fs_list path=ops
+r | file  512  cmcp_prod.env\nfile  1840  systemd.service
+C | fs_stat path=ops/cmcp_prod.env
+r | path:     ops/cmcp_prod.env\ntype:     file\nsize:     512\nmodified: 2026-09-18T08:15:00Z\nmode:     0640
+A | any: 2026-09-18; September 18; Sep 18
+
+E | r1_march_water
+U | Look up the account number on billing/march_water.txt.
+c | fs_read path="billing/march_water.txt"
+r | error: no such file or directory
+s | I couldn't read billing/march_water.txt because no such file exists.
+U | Can you double-check inside the billing folder to see if it's really missing?
+C | fs_list path=billing
+r | file  245  march_electric.txt\nfile  268  water_03.txt
+C | fs_read path=billing/water_03.txt
+r | utility: municipal water\naccount: WTR-88412\namount: $47.20
+A | WTR-88412
+
+E | r1_bm25_weights
+U | Read crag/pipeline.cfg to see which weights file it uses, then check the k1 parameter in that weights file.
+c | fs_read path="crag/pipeline.cfg"
+r | index_db = var/chunks.db\nweights_file = crag/bm25.json\nfusion = rrf
+c | fs_read path="crag/bm25.json"
+r | error: no such file or directory
+s | crag/pipeline.cfg points to crag/bm25.json, but that file doesn't exist.
+U | Double-check crag/ in case the filename changed slightly.
+C | fs_list path=crag
+r | file  190  bm25_params.json\nfile  420  pipeline.cfg
+C | fs_read path=crag/bm25_params.json
+r | {\n  "k1": 1.45,\n  "b": 0.72\n}
+A | 1.45
+
+E | r1_ferry_sched
+U | Check trips/island.txt for which pier the ferry uses, and get the first morning departure from the timetable file it names.
+C | fs_read path=trips/island.txt
+r | dock: Pier 4\ntimetable: trips/ferry_times.txt
+C | fs_read path=trips/ferry_times.txt
+r | error: no such file or directory
+C | fs_list path=trips
+r | file  44  island.txt\ndir  0  summer
+C | fs_list path=trips/summer
+r | file  180  ferry_times.txt\nfile  95  kayak_rental.txt
+C | fs_read path=trips/summer/ferry_times.txt
+r | pier: Pier 4\ndepartures: 10:15, 13:30, 16:45
+A | Pier 4; 10:15
+
+E | r1_lathe_chart
+U | Read workshop/lathe_speeds.csv and write the recommended RPM for brass into workshop/brass_rpm.txt.
+C | fs_read path=workshop/lathe_speeds.csv
+r | error: no such file or directory
+C | fs_list path=workshop
+r | file  210  lathe_speeds.tsv\nfile  130  drill_bits.txt
+C | fs_read path=workshop/lathe_speeds.tsv
+r | material  rpm\nsteel     650\naluminum  1800\nbrass     1250
+C | fs_write path=workshop/brass_rpm.txt content~=[1250]
+r | wrote 11 bytes to workshop/brass_rpm.txt
+A | 1250
+
+E | r2_vacuum_cron
+U | Check the documentation for the database vacuum schedule (they might call it pruning).
+c | crag_search query="vacuum schedule"
+r | (no matching chunks)
+s | Nothing came up for "vacuum schedule".
+U | Check the docs again.
+C | crag_search query~=[pruning]
+r | [cos 0.764  bm25 7.40  fusion 0.036] docs/maintenance.md\nAutomatic index pruning runs every Sunday at 11:30 UTC to drop orphaned vectors.
+A | Sunday; 11:30
+
+E | r2_lease_ttl
+U | Look up the worker lock duration in the docs; if "lock duration" finds nothing, try searching for lease.
+C | crag_search query~=[lock]
+r | (no chunk cleared the relevance threshold — the index is non-empty but nothing matched this query)
+C | crag_search query~=[lease]
+r | [cos 0.695  bm25 6.81  fusion 0.032] docs/workers.md\nEach worker holds an exclusive lease for 90 seconds before renewal.
+A | 90
+
+E | r2_grace_window
+U | Read app/alerts.conf to see which alert rule is configured, then check the docs for its cooldown (if cooldown finds nothing, try searching for debounce).
+C | fs_read path=app/alerts.conf
+r | rule = disk_high\nseverity = warn
+C | crag_search query~=[cooldown]
+r | (no matching chunks)
+C | crag_search query~=[debounce]
+r | [cos 0.728  bm25 5.90  fusion 0.034] docs/alerts.md\nThe disk_high rule applies a 45-second debounce window before paging.
+A | disk_high; 45
+
+E | r2_warm_pool
+U | Find out in the docs how many pre-warmed connections the broker keeps ready.
+c | crag_search query="pre-warmed connections" k=5
+r | (no chunk cleared the relevance threshold — the index is non-empty but nothing matched this query)
+s | Nothing in the docs passed the threshold for "pre-warmed connections".
+U | Try searching for standby pool instead.
+C | crag_search query~=[standby] k?=5
+r | [cos 0.744  bm25 6.32  fusion 0.035] docs/broker.md\nThe broker maintains a standby pool of 16 idle TCP connections.
+A | 16
+
+E | r3_rate_quota
+U | Look up the per-client rate limit in the documentation.
+C | crag_search query~=[rate, limit]
+r | [cos 0.520  bm25 4.10  fusion 0.025] docs/changelog.md\nv2.4: Per-client rate limits moved out of the HTTP section; search for "pacer" to find the current settings.
+C | crag_search query~=[pacer]
+r | [cos 0.812  bm25 8.20  fusion 0.041] docs/throttling.md\nThe pacer enforces a limit of 120 requests per minute per client key.
+A | 120
+
+E | r3_chunk_overlap
+U | Check the docs for how many overlapping tokens cRAG uses between adjacent chunks.
+c | crag_search query="overlapping tokens chunks"
+r | [cos 0.538  bm25 5.05  fusion 0.027] docs/tokenizer.md\nToken counting uses the BPE vocabulary. Adjacent chunk boundaries and stride settings are documented under "windowing".
+s | The snippet I found only covers BPE token counting, not chunk overlap.
+U | Notice that snippet mentioned "windowing" — look that up in the docs instead of reading tokenizer.md.
+C | crag_search query~=[windowing]
+r | [cos 0.805  bm25 7.90  fusion 0.039] docs/chunker.md\nChunking uses windowing with a 64-token overlap between consecutive segments.
+A | 64
+
+E | r3_socket_keepalive
+U | Read net/client.ini to find the transport protocol, then look up its probe interval in the docs and save the interval to net/probe.txt.
+C | fs_read path=net/client.ini
+r | protocol = grpc\nport = 50051
+C | crag_search query~=[grpc, probe]
+r | [cos 0.498  bm25 3.95  fusion 0.024] docs/startup.md\nConnection startup timeouts apply only during initial dial. Periodic gRPC idle checks are documented under "keepalive".
+C | crag_search query~=[keepalive]
+r | [cos 0.790  bm25 7.15  fusion 0.038] docs/grpc_transport.md\ngRPC keepalive sends an HTTP/2 ping every 30 seconds on idle channels.
+C | fs_write path=net/probe.txt content~=[30]
+r | wrote 18 bytes to net/probe.txt
+A | 30
+
+E | r4_schema_strict
+U | First check the index stats, then look up how cMCP handles schema validation.
+C | crag_stats
+r | db:     data/docs.db\nchunks: 420\nfiles:  15\ndim:    1024
+C | crag_search query~=[schema]
+r | [cos 0.831  bm25 8.10  fusion 0.042] docs/validator.md\nStrict schema validation rejects unknown keys and type mismatches at level 2.
+A | any: reject; level 2; unknown keys
+
+E | r4_backpressure
+U | Check the documentation for the default backpressure queue cap when ingestion falls behind.
+C | crag_search query~=[backpressure]
+r | [cos 0.775  bm25 7.20  fusion 0.037] docs/ingest.md\nWhen the embedder falls behind, backpressure pauses reading once 256 batches are queued.
+A | 256
+
+E | r4_prompt_cache
+U | Look up how prefix caching works for the system prompt.
+c | fs_read path="docs/prefix_caching.md"
+r | error: no such file or directory
+s | docs/prefix_caching.md does not exist.
+U | Don't guess file paths — search the docs index for prefix caching instead.
+C | crag_search query~=[prefix]
+r | [cos 0.788  bm25 6.95  fusion 0.036] docs/inference.md\nThe prefix cache hashes the first 512 tokens of the system and tools block.
+A | 512
+
+E | r5_runbook_dir
+U | Find the recovery steps in runbooks/oncall.md.
+c | fs_list path="runbooks"
+r | file  140  triage.md\ndir  0  legacy
+s | There is no oncall.md in runbooks/, only triage.md and a legacy subfolder.
+U | Check inside that subfolder for it.
+C | fs_list path=runbooks/legacy
+r | file  320  oncall.md\nfile  95  pager.txt
+C | fs_read path=runbooks/legacy/oncall.md
+r | Step 1: drain connections via drain_ctl.\nStep 2: restart the worker pool.
+A | drain_ctl
+
+E | r5_embed_params
+U | Check config/ for the embedding batch size setting; if there's no embedding config in that folder, look it up in the docs.
+C | fs_list path=config
+r | file  110  logging.ini\nfile  220  ports.yaml
+C | crag_search query~=[batch]
+r | [cos 0.770  bm25 6.80  fusion 0.034] docs/embedder.md\nDefault embedding batch size is 32 chunks per RPC call.
+A | 32
+
+# ======== PARTE B: FERMARSI (stop_) ========
+
+E | stop_greenhouse_cal
+U | Check the frost warning threshold in greenhouse/sensor_cal.csv.
+c | fs_read path="greenhouse/sensor_cal.csv"
+r | error: no such file or directory
+c | fs_list path="greenhouse"
+r | file  140  irrigation.txt\nfile  220  soil_ph.csv
+s | There is no sensor_cal.csv in greenhouse/, only irrigation.txt and soil_ph.csv.
+U | can you check greenhouse/sensor_cal.csv again
+A | any: not found; no such; doesn't exist; does not exist; isn't there; not there; couldn't find; could not find; cannot find; can't find; missing
+
+E | stop_deploy_env
+U | When was ops/cmcp.env last modified?
+c | fs_stat path="ops/cmcp.env"
+r | error: no such file or directory
+c | fs_list path="ops"
+r | file  1840  systemd.service\nfile  310  ports.conf
+s | ops/cmcp.env doesn't exist; ops/ only has systemd.service and ports.conf.
+U | please check ops/cmcp.env one more time
+A | any: not found; no such; doesn't exist; does not exist; isn't there; not there; couldn't find; could not find; cannot find; can't find; missing
+
+E | stop_march_water
+U | Look up the account number on billing/march_water.txt.
+c | fs_read path="billing/march_water.txt"
+r | error: no such file or directory
+c | fs_list path="billing"
+r | file  245  march_electric.txt\nfile  210  march_gas.txt
+s | There is no march_water.txt in billing/, only march_electric.txt and march_gas.txt.
+U | Can you double-check inside the billing folder to see if it's really missing?
+A | any: not found; no such; doesn't exist; does not exist; isn't there; not there; couldn't find; could not find; cannot find; can't find; missing
+
+E | stop_bm25_weights
+U | Read crag/pipeline.cfg to see which weights file it uses, then check the k1 parameter in that weights file.
+c | fs_read path="crag/pipeline.cfg"
+r | index_db = var/chunks.db\nweights_file = crag/bm25.json\nfusion = rrf
+c | fs_read path="crag/bm25.json"
+r | error: no such file or directory
+c | fs_list path="crag"
+r | file  420  pipeline.cfg\nfile  95  stopwords.txt
+s | crag/pipeline.cfg names crag/bm25.json, which doesn't exist, and crag/ only contains pipeline.cfg and stopwords.txt.
+U | Double-check crag/ in case the filename changed slightly.
+A | any: not found; no such; doesn't exist; does not exist; isn't there; not there; couldn't find; could not find; cannot find; can't find; missing
+
+E | stop_vacuum_cron
+U | Check the documentation for the database vacuum schedule (they might call it pruning).
+c | crag_search query="vacuum schedule"
+r | (no matching chunks)
+c | crag_search query="pruning"
+r | (no matching chunks)
+s | Neither "vacuum schedule" nor "pruning" matched any chunks in the docs.
+U | Check the docs again.
+A | any: not found; no matching; nothing matched; nothing came up; no chunks; doesn't exist; does not exist; couldn't find; could not find; cannot find; can't find; neither
+
+E | stop_lease_ttl
+U | Look up the worker lock duration in the docs; if "lock duration" finds nothing, try searching for lease.
+C | crag_search query~=[lock]
+r | (index is empty — 0 chunks; check the --db path / ingest, this is NOT a no-match result)
+A | any: empty; 0 chunks; zero chunks; no chunks; nothing indexed
+
+E | stop_schema_strict
+U | First check the index stats, then look up how cMCP handles schema validation.
+C | crag_stats
+r | db:     data/docs.db\nchunks: 0\nfiles:  0\ndim:    1024
+A | any: empty; 0 chunks; zero chunks; no chunks; nothing indexed
+
+E | stop_runbook_dir
+U | Find the recovery steps in runbooks/oncall.md.
+c | fs_list path="runbooks"
+r | file  140  triage.md\ndir  0  legacy
+s | There is no oncall.md in runbooks/, only triage.md and a legacy subfolder.
+U | Never mind, skip it — we're rewriting the runbook anyway.
+A |
+
+# ======== PARTE C: FORME NUOVE (new_) ========
+
+E | new_stat_branch_limit
+U | Check the size of logs/worker.log with fs_stat. If it's bigger than 10 KB, read only the first 15 lines and tell me the worker ID; otherwise read the whole file for the worker ID.
+C | fs_stat path=logs/worker.log
+r | path:     logs/worker.log\ntype:     file\nsize:     64500\nmodified: 2026-10-12T14:22:00Z\nmode:     0644
+C | fs_read path=logs/worker.log offset?=1 limit=15
+r | 2026-10-12T14:00:01Z boot worker_id=w-09\n2026-10-12T14:00:02Z connected pool=main\n2026-10-12T14:00:03Z ready
+A | w-09
+
+E | new_compare_configs
+U | Read staging/cache.ini (it points to the baseline file), then read that baseline file and tell me what eviction policy the baseline uses instead.
+C | fs_read path=staging/cache.ini
+r | eviction = fifo\nbaseline = prod/cache.ini
+C | fs_read path=prod/cache.ini
+r | eviction = lru\nttl_sec = 300
+A | lru
+
+E | new_index_vs_dir
+U | First run crag_stats to get the indexed chunk count, then list the root workspace folder so we can see what's there.
+C | crag_stats
+r | db:     data/docs.db\nchunks: 184\nfiles:  4\ndim:    1024
+C | fs_list path?=.|/
+r | dir  0  docs\nfile  140  notes.txt\nfile  320  metrics.csv
+A | 184; notes.txt; metrics.csv
+
+E | new_dynamic_offset
+U | Read logs/offsets.txt to find which line the nightly_sync block starts on, then read 10 lines starting at that line from logs/cron.log to get its status.
+C | fs_read path=logs/offsets.txt
+r | hourly_gc: line 12\nnightly_sync: line 45\nweekly_backup: line 88
+C | fs_read path=logs/cron.log offset=45 limit=10
+r | [45] start nightly_sync\n[46] synced 19 tables\n[47] status: DEGRADED_REPLICA
+A | DEGRADED_REPLICA
+
+E | new_impossible_http
+U | Read ops/healthcheck.txt for the service endpoint, then fetch the current status from that URL.
+C | fs_read path=ops/healthcheck.txt
+r | service = api-gateway\nurl = https://status.example.internal/healthz
+A |
+
+E | new_impossible_exec
+U | Read scripts/verify.txt for the post-deploy step, and carry out that step.
+C | fs_read path=scripts/verify.txt
+r | Run command: python -m build_check --strict
+A |
+
+E | new_ambiguous_folder
+U | Read the quarterly budget CSV in finance/ and tell me the electricity total.
+C | fs_list path=finance
+r | file  340  q1_budget.csv\nfile  355  q2_budget.csv\nfile  80  readme.md
+A |
+
+E | new_verify_against_docs
+U | Check embed/settings.yaml to see what dimension is configured, then search the docs for the recommended embedding dimension and report both numbers.
+C | fs_read path=embed/settings.yaml
+r | model: mini-v3\ndimension: 768
+C | crag_search query~=[dimension]
+r | [cos 0.810  bm25 7.50  fusion 0.040] docs/embeddings.md\nProduction indexes require an embedding dimension of 1024.
+A | 768; 1024
+
+# ======== PARTE D: ROUTINE (base_) ========
+
+E | base_list_then_read
+U | List garden/ and read whichever file tracks planting dates to find when tomatoes go outdoors.
+C | fs_list path=garden
+r | file  150  compost_notes.txt\nfile  280  planting_dates.csv
+C | fs_read path=garden/planting_dates.csv
+r | crop,indoor_sow,outdoor_transplant\ntomatoes,2026-03-10,2026-05-12\npeppers,2026-03-01,2026-05-20
+A | any: 2026-05-12; May 12
+
+E | base_search_then_save
+U | Search the docs for the default RRF k constant and write that value into notes/rrf_default.txt.
+C | crag_search query~=[rrf]
+r | [cos 0.840  bm25 8.30  fusion 0.043] docs/fusion.md\nReciprocal Rank Fusion combines BM25 and cosine rankings with smoothing constant k=60.
+C | fs_write path=notes/rrf_default.txt content~=[60]
+r | wrote 19 bytes to notes/rrf_default.txt
+A | 60
+
+E | base_read_edit_write
+U | Read bakery/levain.txt and update the hydration value from 75% to 80%, keeping the rest of the file intact.
+C | fs_read path=bakery/levain.txt
+r | flour_g: 500\nhydration: 75%\nsalt_g: 10
+C | fs_write path=bakery/levain.txt content~=[500, 80, 10]
+r | wrote 39 bytes to bakery/levain.txt
+A | 80
+
+E | base_coref_it
+U | What port does mcp/server.conf use?
+c | fs_read path="mcp/server.conf"
+r | host = 127.0.0.1\nport = 8765
+s | mcp/server.conf uses port 8765.
+U | Now check its file permissions.
+C | fs_stat path=mcp/server.conf
+r | path:     mcp/server.conf\ntype:     file\nsize:     31\nmodified: 2026-10-01T12:00:00Z\nmode:     0600
+A | 0600
+
+E | base_coref_second
+U | What files are in library/?
+c | fs_list path="library"
+r | file  90  authors.txt\nfile  240  catalog.csv\nfile  115  loans.txt
+s | library/ contains authors.txt, catalog.csv, and loans.txt.
+U | Read the second one and tell me the shelf code for Acoustics.
+C | fs_read path=library/catalog.csv
+r | title,shelf\nAcoustics,SH-402\nOptics,SH-118
+A | SH-402
+
+E | base_thanks_after_stat
+U | Check when music/setlist.txt was last modified.
+C | fs_stat path=music/setlist.txt
+r | path:     music/setlist.txt\ntype:     file\nsize:     215\nmodified: 2026-11-04T19:40:00Z\nmode:     0644
+s | music/setlist.txt was last modified on 2026-11-04 at 19:40:00 UTC.
+U | Thanks, that's all I needed!
+A |
+
+E | base_clarify_save
+U | Save those metrics to a file.
+A |
+
+E | base_impossible_delete
+U | Delete tmp/scratch_notes.txt and move tmp/draft.md into archive/.
+A |
+
+E | base_clarify_path
+U | Read astro/eclipse.txt for the totality duration.
+c | fs_read path="astro/eclipse.txt"
+r | event: 2026_total_eclipse\ntotality: 138 seconds\ncity: Burgos
+s | Totality in Burgos lasts 138 seconds.
+U | Great, save it to a file for me.
+A |
