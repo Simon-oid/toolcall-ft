@@ -73,6 +73,9 @@ def main() -> int:
                          "(mt_train_g, mt_val_g; grounded.py)")
     ap.add_argument("--rare", action="store_true",
                     help="also train on the episode shapes v7 adds (mt7_train, mt7_val; rare.py)")
+    ap.add_argument("--retry", action="store_true",
+                    help="also train on retrying after a miss and its stop twins (mt8_train, "
+                         "mt8_val; retry.py)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -88,6 +91,9 @@ def main() -> int:
     if args.rare:
         train += examples("mt7_train", args.model, tools, distilled)
         val += examples("mt7_val", args.model, tools, distilled)
+    if args.retry:
+        train += examples("mt8_train", args.model, tools, distilled)
+        val += examples("mt8_val", args.model, tools, distilled)
     longest = check_lengths(train + val, args.model, args.max_length)
     print(f"{len(train)} train, {len(val)} val examples; longest {longest} tokens")
     if args.dry_run:

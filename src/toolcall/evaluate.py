@@ -52,9 +52,11 @@ SPLITS = ("test_id", "test_ood")           # evaluated by default
 MT_SPLITS = ("mt_test_id", "mt_test_ood")  # episodes.py: multi-step and multi-turn
 MT_G_SPLITS = ("mt_test_id_g", "mt_test_ood_g")  # grounded.py: final replies with the values
 MT7_SPLITS = ("mt7_test_id", "mt7_test_ood")     # rare.py: the episode shapes v7 adds
+MT8_SPLITS = ("mt8_test_id", "mt8_test_ood")     # retry.py: retrying after a miss, and stopping
 REPORT_SPLITS = (*SPLITS, "test_hand", "test_hand2", "test_hand3",
                  "test_hand4", "test_hand5", *MT_SPLITS, "test_hand6",
-                 *MT_G_SPLITS, "test_hand7", *MT7_SPLITS, "test_hand8")  # when present
+                 *MT_G_SPLITS, "test_hand7", *MT7_SPLITS, "test_hand8",
+                 *MT8_SPLITS, "test_hand9")  # when present
 DECODING = {"free": "free, greedy",
             "eager": "whole reply constrained to a valid call or {name: none} (eager)",
             "lazy": "llama.cpp tool grammar, applied once a call starts (lazy)",
