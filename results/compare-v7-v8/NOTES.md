@@ -93,3 +93,13 @@ What v8 still gets wrong, in every seed:
 
   The gate against the base and against v7 passes on every metric; the key-fact drop from v7
   (-0.085, interval -0.205 to +0.031) is inside the one-seed noise.
+
+## Decision
+
+v7 stays the default. v8 is the first version that learns part of the retry
+after a miss, but the gain is on one set and significant in no seed alone,
+and it gives back abstention on every hand-written episode set, the cost
+the stop twins were there to prevent. A next attempt would vary
+`retry.py`'s first queries (with `k` and two-part topics), add twins where
+the user asks outright for a second look or where the error is two turns
+back, and needs a new blind set: `test_hand9` has now been read.

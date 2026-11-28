@@ -9,13 +9,15 @@ this is the design.
 ```
  cMCP servers ──snapshot_tools.sh──► data/tools.json (6 tools, their inputSchemas)
                                            │
- data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand … test_hand8
+ data.py (seeded generator) ──► train / val / test_id / test_ood     test_hand … test_hand9
  episodes.py ──► mt_* (episodes, results     │                       (written by hand;
    in the servers' formats, corpus.py)      │                        handset.py, handset_mt.py)
  grounded.py ──► mt_*_g (final replies       │
    that carry the value, v6)                 │
  rare.py ──► mt7_* (the episode shapes       │
-   episodes.py never makes, v7)              ▼
+   episodes.py never makes, v7)              │
+ retry.py ──► mt8_* (retry after a miss      │
+   and its stop twins, v8)                   ▼
         │                          prompt.py: the model's own chat template + tools
         │ distill.py: base model           │
         │ answers the chit-chat            ▼
@@ -206,6 +208,24 @@ passes the tool's schema but is wrong earns 0.5, and anything else earns 0.
 - **Generation is per micro-batch** (`steps_per_generation=1`): generating
   a whole step's 64 replies at once runs a 16 GB card out of memory.
 
+### 12. Each retry kind ships with a stop twin, judged on a set built the same way
+
+`retry.py` writes each retry after a miss next to a stop twin: the same
+kind of miss, but the history already answers and the right move is to reply.
+`test_hand9`'s brief asks for the same pairing (`r*_` and `stop_` episodes
+on one topic), so a model that learns "always call again" gains on one half
+and loses on the other, and the pair count shows it.
+
+- **Buys:** the retry cannot be learned as a blanket habit without the test
+  showing the price; the pooled count of pairs with both halves right
+  separates "retries when it should" from "retries".
+- **Costs:** a twin trains the stop only for the cues it was written with.
+  v8 learned part of the retry (`test_hand9` retry episodes 0.51 → 0.68),
+  but its twins stayed at 0.50 and abstention fell on every hand-written
+  episode set: cues the generator did not vary (a user asking outright for a
+  second look, an error seen two turns back) still pull toward a call. v7
+  stays the default.
+
 ## Reproducing
 
 ```sh
@@ -242,6 +262,17 @@ python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/
 llama-server -m models/ft-v7-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
 python -m toolcall.evaluate --name mt7-ft-v7-free   --model Qwen/Qwen2.5-1.5B-Instruct --splits mt7_test_id,mt7_test_ood
 python -m toolcall.evaluate --name hand8-ft-v7-free --model Qwen/Qwen2.5-1.5B-Instruct --splits test_hand8
+```
+
+v8, not kept: v7's recipe plus `retry.py`'s retry and stop kinds, and its sets:
+
+```sh
+python -m toolcall.retry                      # data/mt8_*.jsonl
+python -m toolcall.train    --model Qwen/Qwen2.5-1.5B-Instruct --out models/ft-v8 --multistep --grounded --rare --retry
+python -m toolcall.export   --model Qwen/Qwen2.5-1.5B-Instruct --adapter models/ft-v8
+llama-server -m models/ft-v8-q8_0.gguf --port 8083 -ngl 99 -c 8192 -np 1 &
+python -m toolcall.evaluate --name mt8-ft-v8-free   --model Qwen/Qwen2.5-1.5B-Instruct --splits mt8_test_id,mt8_test_ood
+python -m toolcall.evaluate --name hand9-ft-v8-free --model Qwen/Qwen2.5-1.5B-Instruct --splits test_hand9
 ```
 
 DPO from v5 (`models/ft-v5`, trained with `--multistep`), round 1; rounds 2

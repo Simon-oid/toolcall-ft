@@ -428,6 +428,66 @@ Per-seed tests and the failures are in
   held-out phrasings episodes right go 0.20 → 0.84; on the blind hand-written
   set 0.48 → 0.62.
 
+## v8: retrying after a miss, and its stop twins
+
+On test_hand8, v7 never retried after a miss, and neither did the base, the 7B or GRPO.
+v8 adds data for the retry and, beside each kind, a twin where the history
+already answers, so that the model learns when not to retry.
+- **A brief first, then a blind set.** [`data/test_hand9.txt`](../data/test_hand9.txt)
+  (48 episodes, 125 scored steps) was written from a brief and committed
+  (c9101bc, 40d4a27) before the generator (e8e577d): five retry parts
+  (`r1_` missing file → list the folder, `r2_` empty search → a word from the
+  conversation, `r3_` off-topic results → the term they point to, `r4_`
+  search instead of guessing a file name, `r5_` listing without the file →
+  its subfolder), eight `stop_` twins, eight `new_` and nine `base_`
+  episodes. A blind checker printed only counts, errors and overlap with the
+  training data (none, verbatim or by 6-gram).
+- **A third generator** ([`src/toolcall/retry.py`](../src/toolcall/retry.py)):
+  nine kinds, five retries and four stop twins, built from `rare.py`'s
+  helpers, with aliases (another name for each topic, said earlier in the
+  conversation) disjoint between train and test.
+- **Training.** v7's data plus 1536 `mt8_train` turns: 6668 examples, 2
+  epochs, 834 steps in 129 minutes per seed, same three seeds.
+
+| 3 seeds, mean ± sd | base 1.5B | 7B | v7 | v8 | fixed / broken, pooled |
+|---|---|---|---|---|---|
+| episodes right, test_hand9 (blind) | 0.21 | 0.29 | 0.56 ± 0.03 | **0.61 ± 0.07** | 16 / 8 |
+| right call inside an episode, test_hand9 | | | 0.80 ± 0.04 | 0.87 ± 0.03 | 22 / 6 |
+| no call when none is due, test_hand9 | | | 0.83 ± 0.02 | 0.78 ± 0.01 | 2 / 9 |
+| final reply carries the value, test_hand9 | | | 0.81 ± 0.04 | 0.80 ± 0.05 | 3 / 4 |
+| episodes right, test_hand8 | 0.30 | 0.42 | 0.62 ± 0.01 | 0.65 ± 0.00 | 18 / 14 |
+| episodes right, test_hand7 | 0.23 | 0.47 | 0.56 ± 0.02 | 0.52 ± 0.02 | 3 / 6 |
+| episodes right, test_hand6 | 0.22 | 0.44 | 0.59 ± 0.05 | 0.58 ± 0.02 | 6 / 7 |
+| episodes right, `mt8_test_ood` (generated) | 0.07 | 0.16 | 0.14 ± 0.03 | 0.92 ± 0.03 | 423 / 1 |
+| episodes right, `mt7_test_ood` | 0.13 | 0.30 | 0.84 ± 0.03 | 0.84 ± 0.03 | 36 / 38 |
+| episodes right, `mt_test_ood` | 0.27 | 0.66 | 0.84 ± 0.06 | 0.84 ± 0.00 | 29 / 30 |
+| right call, single-turn test_ood | 0.70 | 0.90 | 0.96 ± 0.02 | 0.97 ± 0.01 | 9 / 6 |
+| abstains when it should, test_ood | 0.55 | 0.60 | 0.96 ± 0.01 | 0.96 ± 0.01 | 2 / 3 |
+| right call, test_hand | | | 0.98 ± 0.02 | 0.94 ± 0.02 | |
+
+By part on test_hand9 (episodes right, v7 → v8, three seeds pooled):
+
+| `r1_` list the folder | `r2_` reword | `r3_` follow the pointer | `r4_` search, don't guess | `r5_` the subfolder | `stop_` | `new_` | `base_` |
+|---|---|---|---|---|---|---|---|
+| 0.28 → 0.61 | 0.67 → 0.83 | 0.33 → 0.67 | 0.73 → 0.67 | 0.53 → 0.67 | 0.50 → 0.50 | 0.25 → 0.13 | 1.00 → 0.96 |
+
+Per-seed tests and the failures are in
+[`results/compare-v7-v8/`](../results/compare-v7-v8/).
+- **Retrying is partly learned.** Retry episodes go 35/69 → 47/69 over the
+  seeds, most on listing the folder after a missing file. No seed is
+  significant alone on the whole set (3 / 2, 7 / 1, 6 / 5).
+- **Stopping is not, and abstention pays.** The stop twins stay at 0.50.
+  Abstention falls on all four hand-written episode sets (10 fixed, 27
+  broken), mostly where an error or a listing in the history already
+  answers: v8 calls once more.
+- **A habit from the generator.** `retry.py`'s first searches are the bare
+  topic; v8 drops `k` and the second half of "X and Y" from single searches
+  (test_hand 0.98 → 0.94, test_hand5 0.86 → 0.81).
+- **Still wrong in every model:** a re-check the user asks for after the
+  history settled it, an empty index read as a miss, requests no tool can
+  do (answered with `http_get` or `bash`, tools that do not exist).
+- **v7 stays the default.**
+
 ## Answering documents: askdocs
 
 Training a model to call tools can cost
@@ -496,6 +556,13 @@ key-fact recall 0.62 (v6 0.66), wrong refusals 0.07 (v6 0.02), correct
 refusals 0.90 (one unanswerable question answered), faithfulness 0.75 (v6
 0.85). The gate against the base flags nothing (key facts +0.13 [+0.02,
 +0.25]); against v6 every metric slips, each within one seed's interval.
+
+**v8 on askdocs.** Same base run, seed 0, 2026-11-28
+([`results/askdocs-forgetting-v8/`](../results/askdocs-forgetting-v8/)):
+key-fact recall 0.53 (v7 0.62), wrong refusals 0.02 (v7 0.07), correct
+refusals 1.00 (v7 0.90), faithfulness 0.73 (v7 0.75). The gate flags
+nothing against the base or against v7 (key facts −0.085 [−0.205,
++0.031]).
 
 **As askdocs' answering model.** The same run compares the fine-tuned model
 with the 3B that askdocs uses by default

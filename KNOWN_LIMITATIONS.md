@@ -40,7 +40,7 @@ fixed it, is in [`docs/results.md`](docs/results.md).
   `rare.py`'s own test, `mt7_test_ood`, overstates it most: v7 0.84 against
   v6's 0.20, where `test_hand8` moves 0.48 → 0.62.
 - **The hand-written sets are small:** 54, 48, 48, 40 and 39 single requests,
-  32, 30 and 43 episodes. Their intervals are wide, and on `test_hand7` the 27
+  32, 30, 43 and 48 episodes. Their intervals are wide, and on `test_hand7` the 27
   final turns with a value to report are too few for any one seed's change to
   be significant; the seeds are summed instead. On `test_hand8` only seed 0's
   gain is significant on its own (p 0.013), and its eight families have 2–3
@@ -58,14 +58,22 @@ fixed it, is in [`docs/results.md`](docs/results.md).
     kinds, so neither is blind for v7. `test_hand8` was written from a brief
     and committed before `rare.py`, and stayed unread until v7's three seeds
     were evaluated; one generator phrasing that matched it word for word was
-    reworded before training. It has now been read for v7's error analysis,
-    so a v8 needs a new set.
+    reworded before training. It has now been read for v7's error analysis.
+  - `test_hand9` was written from a brief and committed before `retry.py`,
+    checked by a script that printed only counts and overlap, and stayed
+    unread until v8's three seeds were evaluated. It has now been read for
+    v8's error analysis, so a next version needs a new set.
 - **Who wrote them.** `test_hand` to `test_hand4` were written by the author
   of the generator; they differ in style, not in who imagined the requests,
   and `test_hand4` was written together with the v4 training data. On it,
   v4's gain in abstention is two to three times what it is on `test_hand5`.
-  `test_hand5` to `test_hand8` were written from a brief by someone who had
+  `test_hand5` to `test_hand9` were written from a brief by someone who had
   not seen the generator: quote those.
+- **Three `test_hand9` stop labels are debatable.** The history already
+  shows the file missing or both searches empty, and the user then asks
+  outright to "double-check" or "check the docs again"; the label says to
+  answer from the history. Every v7 and v8 seed checks again. The set is
+  frozen, so the labels stay.
 - **One `test_hand5` label was set during review.** "Find the part about
   deployment in the docs, the one with the diagram" was moved from
   ambiguous to a call (`crag_search`, query containing "deployment"), and
@@ -87,11 +95,20 @@ fixed it, is in [`docs/results.md`](docs/results.md).
 
 - **Four hand-written episodes in ten.** 0.62 ± 0.01 on the blind
   `test_hand8`, 0.56 and 0.59 on `test_hand7` and `test_hand6`.
-- **It does not retry after a miss.** After a read reports a missing file it
+- **It rarely retries after a miss.** After a read reports a missing file it
   says the file does not exist instead of listing the folder; asked to search
   the docs, it guesses a file name. It gets neither of `test_hand8`'s two
-  such episodes right in any seed, and neither do the base and the 7B. `rare.py` teaches both the retry and, when the user
-  repeats a request after a miss, stopping: the cues are close.
+  such episodes right in any seed, and neither do the base and the 7B; on
+  `test_hand9`'s 23 retry episodes it gets 0.51. `rare.py` teaches both the
+  retry and, when the user repeats a request after a miss, stopping: the
+  cues are close.
+- **Requests no tool can do get a call anyway.** Asked to hit an HTTP
+  endpoint or run a command, no seed says it cannot: it calls a tool that
+  does not exist (`http_get`, `shell_run`), searches the docs, or writes
+  the command to a file.
+- **An empty index reads as a miss.** When `crag_search` says the index is
+  empty and the user said "if that finds nothing, try X", every seed
+  searches for X.
 - **It does not follow a reference.** After reading a file that says "see
   ops/log-schema.json", it repeats the file instead of reading the one cited.
   No generated episode follows a reference inside a file's text.
@@ -108,6 +125,22 @@ fixed it, is in [`docs/results.md`](docs/results.md).
 - v6's "archive exists and is empty." after a stat no longer appears, and
   stopping when the history already answers (an index with 0 chunks, a file
   already missing) rises from 0.00 to 0.67 of `test_hand8`'s three episodes.
+
+## Data for the retry cost the stop (v8)
+
+v8 adds `retry.py`'s retry episodes, each with a stop twin, to v7's data
+([notes](results/compare-v7-v8/NOTES.md)). It was not kept:
+
+- **The retry is partly learned:** `test_hand9`'s retry episodes 0.51 →
+  0.68, episodes right 0.56 → 0.61, no seed significant alone.
+- **The twins did not teach the stop.** `stop_` episodes stay at 0.50, and
+  abstention falls on all four hand-written episode sets (10 fixed, 27
+  broken), mostly where the history already answers (`error_already_seen`).
+- **It copies the generator's searches.** `retry.py`'s first queries are a
+  bare topic, and v8 drops `k` and the second half of "X and Y" from single
+  searches (`test_hand` 0.98 → 0.94, `test_hand5` 0.86 → 0.81).
+- A fix would vary the first queries and add twins where the user asks
+  outright for a second look, and needs a new blind set to judge it.
 
 ## Preference tuning did not help
 

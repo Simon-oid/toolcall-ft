@@ -4,6 +4,22 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+### v8: retry after a miss, with stop twins, three seeds
+
+- `test_hand9` (48 hand-written episodes, 125 scored steps), committed before
+  the generator: five retry parts (`r1_`–`r5_`), their `stop_` twins, `new_`
+  and `base_` episodes; checked blind (counts and overlap only).
+- `retry.py`: nine kinds (five retries after a miss, four stop twins where
+  the history already answers), `mt8_*` splits, `train.py --retry`,
+  `MT8_SPLITS` and `test_hand9` in the report, `tests/test_retry.py`.
+- v8 = v7's recipe plus `--retry`, three seeds. On the blind `test_hand9`
+  retry episodes 0.51 → 0.68 and episodes right 0.56 → 0.61 (16 fixed, 8
+  broken, no seed significant alone); `mt8_test_ood` 0.14 → 0.92. Stop twins
+  unchanged at 0.50, abstention down on all four hand-written episode sets
+  (10 fixed, 27 broken), shorter single searches (`test_hand` 0.98 → 0.94).
+  askdocs gate ok against the base and v7. v7 stays the default.
+  `results/compare-v7-v8/`, `results/askdocs-forgetting-v8/`.
+
 ### GRPO from v7, three seeds
 
 - `grpo.py`: TRL's GRPOTrainer from a merged SFT model (a new LoRA, KL to
