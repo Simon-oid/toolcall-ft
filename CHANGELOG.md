@@ -4,6 +4,13 @@ All notable changes to toolcall-ft. Dates are ISO 8601.
 
 ## Unreleased
 
+### Demo on v7
+
+- `scripts/demo.py` and the README recording now use v7, the default (they
+  pointed at v2's GGUF, no longer kept). Same five requests: the base model
+  still miscounts the range, passes an argument `crag_stats` does not take
+  and calls `fs_delete`; v7 gets all five right.
+
 ### v8: retry after a miss, with stop twins, three seeds
 
 - `test_hand9` (48 hand-written episodes, 125 scored steps), committed before

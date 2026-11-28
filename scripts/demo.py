@@ -3,7 +3,7 @@
 one, each reply judged by cMCP's validator. Made to be recorded.
 
     llama-server -hf Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q8_0 --port 8084 -ngl 99 -c 8192 -np 1 &
-    llama-server -m models/ft-1.5b-v2-q8_0.gguf           --port 8083 -ngl 99 -c 8192 -np 1 &
+    llama-server -m models/ft-1.5b-v7-q8_0.gguf           --port 8083 -ngl 99 -c 8192 -np 1 &
     python scripts/demo.py                      # --pause 0 for no pauses
 
 The requests are hand-written and in neither training nor test data.
@@ -70,7 +70,7 @@ def main() -> int:
         print(f"{e}\nStart both servers first: see the top of this file.", file=sys.stderr)
         return 1
     print(f"{BOLD}Six MCP tools, one request each. Same prompt, greedy decoding.{OFF}")
-    print(f"{DIM}base: Qwen2.5-1.5B    fine-tuned: the same model + LoRA{OFF}")
+    print(f"{DIM}base: Qwen2.5-1.5B    fine-tuned: the same model + LoRA (v7){OFF}")
     for title, request in SCENES:
         time.sleep(args.pause)
         print(f"\n{BOLD}# {title}{OFF}\n  user        {request}")

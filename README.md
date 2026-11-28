@@ -453,8 +453,8 @@ with 16 repeated characters, and the two affected runs were evaluated again.
 ## Demo
 
 [`scripts/demo.py`](scripts/demo.py) sends five hand-written requests to the
-base model and to the fine-tuned one, side by side, and prints each call
-with the validator's verdict (the recording at the top). In one run the base
+base model and to the fine-tuned one (v7, the default), side by side, and prints each call
+with the validator's verdict (the recording at the top, 2026-11-28). The base
 model miscounted a line range (`limit 15` for lines 30 to 45), passed an
 argument `crag_stats` does not take, and called a tool that does not exist
 (`fs_delete`). The fine-tuned model got all five right.
