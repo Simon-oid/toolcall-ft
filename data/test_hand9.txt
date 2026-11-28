@@ -176,6 +176,26 @@ C | crag_search query~=[prefix]
 r | [cos 0.788  bm25 6.95  fusion 0.036] docs/inference.md\nThe prefix cache hashes the first 512 tokens of the system and tools block.
 A | 512
 
+E | r4_token_budget
+U | Read jobs/daily_ingest.txt to see which mode failed, then look up the recommended token limit for that mode in the docs index and save that number to jobs/fix_note.txt.
+C | fs_read path=jobs/daily_ingest.txt
+r | job: daily_ingest\nfailed_mode: streaming\nstatus: OOM
+C | crag_search query~=[streaming, token]
+r | [cos 0.798  bm25 7.45  fusion 0.038] docs/streaming_ingest.md\nIn streaming mode, keep batch size capped at 960 tokens per request.
+C | fs_write path=jobs/fix_note.txt content~=[960]
+r | wrote 13 bytes to jobs/fix_note.txt
+A | 960
+
+E | r4_retry_backoff
+U | How high does the client retry delay go before capping?
+c | fs_read path="retry_policy.md"
+r | error: no such file or directory
+s | There is no retry_policy.md in the workspace.
+U | Forget looking for a local file — search the docs index for backoff cap instead.
+C | crag_search query~=[backoff]
+r | [cos 0.802  bm25 7.60  fusion 0.039] docs/client_retries.md\nExponential backoff caps at 120 seconds between attempts.
+A | 120
+
 E | r5_runbook_dir
 U | Find the recovery steps in runbooks/oncall.md.
 c | fs_list path="runbooks"
@@ -195,6 +215,38 @@ r | file  110  logging.ini\nfile  220  ports.yaml
 C | crag_search query~=[batch]
 r | [cos 0.770  bm25 6.80  fusion 0.034] docs/embedder.md\nDefault embedding batch size is 32 chunks per RPC call.
 A | 32
+
+E | r5_invoice_archive
+U | List receipts/ to find the November copier repair note and tell me the technician's name.
+C | fs_list path=receipts
+r | file  180  toner_oct.txt\ndir  0  fy24
+C | fs_list path=receipts/fy24
+r | file  215  copier_repair_nov.txt\nfile  95  desk_lamp.txt
+C | fs_read path=receipts/fy24/copier_repair_nov.txt
+r | item: office copier\nservice_date: 2024-11-19\ntechnician: Marta Bellini
+A | Marta Bellini
+
+E | r5_clinic_hours
+U | Read clinic/notice.txt to see where the holiday hours are stored, then check what time the lab opens on Dec 26.
+C | fs_read path=clinic/notice.txt
+r | Holiday schedules have been moved into clinic/schedules/.
+C | fs_list path=clinic/schedules
+r | file  110  regular_hours.txt\ndir  0  winter
+C | fs_list path=clinic/schedules/winter
+r | file  165  december_holidays.txt\nfile  140  january_holidays.txt
+C | fs_read path=clinic/schedules/winter/december_holidays.txt
+r | Dec 24: 08:30 - 13:00\nDec 26: 10:00 - 14:00
+A | 10:00
+
+E | r5_auth_timeout
+U | List auth/ to see if there's a file documenting the session idle timeout.
+c | fs_list path="auth"
+r | file  190  oauth_urls.txt\nfile  240  roles.yaml
+s | auth/ only contains oauth_urls.txt and roles.yaml, with no session timeout file or subfolders.
+U | Okay, check the documentation index for the session idle timeout instead.
+C | crag_search query~=[session, timeout]
+r | [cos 0.815  bm25 7.80  fusion 0.040] docs/sessions.md\nIdle user sessions expire after 35 minutes of inactivity.
+A | 35
 
 # ======== PARTE B: FERMARSI (stop_) ========
 
